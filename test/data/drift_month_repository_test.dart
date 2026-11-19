@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:offmoney/application/change_log_entry.dart';
 import 'package:offmoney/application/month_repository.dart';
+import 'package:offmoney/domain/card_color.dart';
+import 'package:offmoney/domain/card_rules.dart';
 import 'package:offmoney/domain/expense.dart';
 import 'package:offmoney/domain/expense_rules.dart';
 import 'package:offmoney/domain/money.dart';
@@ -143,6 +145,53 @@ void main() {
       );
     });
 
+    test('an installment is stored with its card', () async {
+      await memory.cards.addCard(name: 'Roxo', color: CardColor(0x8A05BE));
+      final onCard = installment('Monitor', '60,00', 7, 9, cardId: 1);
+
+      await memory.repository.addExpense(onCard);
+
+      final stored = (await memory.repository.openMonth()).entries.single;
+      expect(stored.expense, onCard);
+    });
+
+    test('a card can be given to, changed on and removed from an '
+        'installment, logged each time', () async {
+      await memory.cards.addCard(name: 'Roxo', color: CardColor(0x8A05BE));
+      await memory.cards.addCard(name: 'Laranja', color: CardColor(0xFF7A00));
+      await memory.repository.addExpense(installment('Monitor', '60,00', 7, 9));
+      final id = (await memory.repository.openMonth()).entries.single.id;
+      Future<int?> storedCardId() async {
+        final month = await memory.repository.openMonth();
+        return (month.entries.single.expense as InstallmentExpense).cardId;
+      }
+
+      final storedAfterEachUpdate = <int?>[];
+      for (final cardId in [1, 2, null]) {
+        await memory.repository.updateExpense(
+          id,
+          installment('Monitor', '60,00', 7, 9, cardId: cardId),
+        );
+        storedAfterEachUpdate.add(await storedCardId());
+      }
+
+      expect(storedAfterEachUpdate, [1, 2, null]);
+      final updates = [
+        for (final entry in (await memory.repository.snapshot()).changeLog)
+          if (entry.action == ChangeAction.expenseUpdated) entry,
+      ];
+      Object? cardIdIn(String? json) =>
+          (jsonDecode(json!) as Map<String, Object?>)['cardId'];
+      expect(
+        [for (final update in updates) cardIdIn(update.before)],
+        [null, 1, 2],
+      );
+      expect(
+        [for (final update in updates) cardIdIn(update.after)],
+        [1, 2, null],
+      );
+    });
+
     test('an item never changes category', () async {
       await memory.repository.addExpense(fixed('Condomínio', '750,00'));
       final id = (await memory.repository.openMonth()).entries.single.id;
@@ -219,6 +268,36 @@ void main() {
         });
       },
     );
+
+    test('carries the card of each advancing installment, also when the '
+        'card is archived', () async {
+      await memory.cards.addCard(name: 'Roxo', color: CardColor(0x8A05BE));
+      await memory.cards.addCard(name: 'Laranja', color: CardColor(0xFF7A00));
+      await memory.repository.setIncome(brl('5.000,00'));
+      await memory.repository.addExpense(
+        installment('Monitor', '60,00', 7, 9, cardId: 1),
+      );
+      await memory.repository.addExpense(
+        installment('Notebook', '150,00', 6, 10, cardId: 2),
+      );
+      await memory.repository.addExpense(installment('TV', '120,00', 8, 18));
+      await memory.cards.archiveCard(2);
+      final closing = await memory.repository.openMonth();
+
+      await memory.repository.applyClose(planFor(closing));
+
+      final open = await memory.repository.openMonth();
+      expect(
+        [for (final entry in open.entries) entry.expense],
+        [
+          installment('Monitor', '60,00', 8, 9, cardId: 1),
+          installment('Notebook', '150,00', 7, 10, cardId: 2),
+          installment('TV', '120,00', 9, 18),
+        ],
+      );
+      final closed = await memory.repository.watchMonth(closing.id).first;
+      expect(closed.entries, closing.entries);
+    });
 
     test('the same plan applied twice fails and writes nothing', () async {
       final plan = planFor(await monthWithItems());
@@ -329,8 +408,13 @@ void main() {
     test(
       'a snapshot restores into the same data plus the import entry',
       () async {
+        await memory.cards.addCard(name: 'Roxo', color: CardColor(0x8A05BE));
+        await memory.cards.addCard(name: 'Laranja', color: CardColor(0xFF7A00));
+        await memory.cards.archiveCard(1);
         await memory.repository.setIncome(brl('4.800,00'));
-        await memory.repository.addExpense(installment('TV', '120,00', 8, 18));
+        await memory.repository.addExpense(
+          installment('TV', '120,00', 8, 18, cardId: 1),
+        );
         await memory.repository.applyClose(
           planFor(await memory.repository.openMonth()),
         );
@@ -355,6 +439,9 @@ void main() {
 
         final restored = await copy.repository.snapshot();
         final imported = restored.changeLog.last;
+        expect(restored.cards, original.cards);
+        expect(restored.cards, await copy.cards.cards());
+        expect(restored.cards, hasLength(2));
         expect(describeMonths(restored), describeMonths(original));
         expect(
           describeChanges(restored.changeLog),
@@ -362,6 +449,11 @@ void main() {
         );
         expect(imported.id, original.changeLog.length + 1);
         expect(imported.action, ChangeAction.backupImported);
+        expect(jsonDecode(imported.after!), {
+          'months': 2,
+          'cards': 2,
+          'changeLogEntries': original.changeLog.length,
+        });
       },
     );
 
@@ -387,7 +479,26 @@ void main() {
       );
     });
 
+    test('replacing swaps the previous cards for the ones given', () async {
+      final source = await MemoryRepository.open();
+      addTearDown(source.close);
+      await source.cards.addCard(name: 'Laranja', color: CardColor(0xFF7A00));
+      await memory.cards.addCard(name: 'Roxo', color: CardColor(0x8A05BE));
+      await memory.cards.addCard(name: 'Verde', color: CardColor(0x00A868));
+      await memory.repository.addExpense(
+        installment('Monitor', '60,00', 7, 9, cardId: 2),
+      );
+
+      await memory.repository.replaceAll(await source.repository.snapshot());
+
+      expect(
+        [for (final card in await memory.cards.cards()) card.name],
+        ['Laranja'],
+      );
+    });
+
     test('a failed replace keeps the previous data', () async {
+      await memory.cards.addCard(name: 'Roxo', color: CardColor(0x8A05BE));
       await memory.repository.setIncome(brl('1.000,00'));
       await memory.repository.addExpense(fixed('Condomínio', '750,00'));
       final before = await memory.repository.snapshot();
@@ -412,6 +523,8 @@ void main() {
         [for (final month in before.months) month.entries],
       );
       expect(after.months.single.income, brl('1.000,00'));
+      expect(after.cards, before.cards);
+      expect(after.cards, hasLength(1));
       expect(after.changeLog.length, before.changeLog.length);
     });
   });
@@ -443,6 +556,8 @@ void main() {
     final aboveCap = Money.max.cents + 1;
     const belowMinimum = ExpenseRules.minimumInstallments - 1;
     const pastLastMonth = ReferenceMonth.monthsInYear + 1;
+    final longCardName = 'a' * (CardRules.nameMaxLength + 1);
+    const aboveWhite = CardColor.maxRgb + 1;
     final invalidStatements = {
       'amount zero':
           'INSERT INTO expenses (month_id, category, name, amount_cents, '
@@ -473,6 +588,30 @@ void main() {
           'INSERT INTO expenses (month_id, category, name, amount_cents, '
           "spent_on, created_at, updated_at) VALUES (1, 'fixed', 'X', 1, "
           "'2026-11-07', $at, $at)",
+      'card on a fixed item':
+          'INSERT INTO expenses (month_id, category, name, amount_cents, '
+          "card_id, created_at, updated_at) VALUES (1, 'fixed', 'X', 1, 1, "
+          '$at, $at)',
+      'card on a variable item':
+          'INSERT INTO expenses (month_id, category, name, amount_cents, '
+          "spent_on, card_id, created_at, updated_at) VALUES (1, 'variable', "
+          "'X', 1, '2026-11-07', 1, $at, $at)",
+      'installment on a missing card':
+          'INSERT INTO expenses (month_id, category, name, amount_cents, '
+          'current_installment, total_installments, card_id, created_at, '
+          "updated_at) VALUES (1, 'installment', 'X', 1, 1, 2, 99, $at, $at)",
+      'card without a name':
+          'INSERT INTO cards (name, color_rgb, created_at) '
+          "VALUES ('', 0, $at)",
+      'card name above the limit':
+          'INSERT INTO cards (name, color_rgb, created_at) '
+          "VALUES ('$longCardName', 0, $at)",
+      'card color below black':
+          'INSERT INTO cards (name, color_rgb, created_at) '
+          "VALUES ('Y', -1, $at)",
+      'card color above white':
+          'INSERT INTO cards (name, color_rgb, created_at) '
+          "VALUES ('Y', $aboveWhite, $at)",
       'expense of a missing month':
           'INSERT INTO expenses (month_id, category, name, amount_cents, '
           "created_at, updated_at) VALUES (99, 'fixed', 'X', 1, $at, $at)",
@@ -509,6 +648,10 @@ void main() {
           "VALUES ($at, 99, 'incomeSet')",
     };
 
+    setUp(
+      () => memory.cards.addCard(name: 'Roxo', color: CardColor(0x8A05BE)),
+    );
+
     for (final MapEntry(key: description, value: statement)
         in invalidStatements.entries) {
       test('rejects $description', () async {
@@ -528,6 +671,21 @@ void main() {
       final month = await memory.repository.openMonth();
       expect(month.income, Money.max);
       expect(month.entries.single.expense.amount, Money.max);
+    });
+
+    test('accepts a card name and colors exactly at the limits', () async {
+      final longestName = '💳' * CardRules.nameMaxLength;
+
+      await memory.cards.addCard(name: longestName, color: CardColor(0));
+      await memory.cards.addCard(
+        name: 'Branco',
+        color: CardColor(CardColor.maxRgb),
+      );
+
+      expect(
+        [for (final card in await memory.cards.cards()) card.name],
+        ['Roxo', longestName, 'Branco'],
+      );
     });
 
     test('accepts installments at the minimum and the last month', () async {

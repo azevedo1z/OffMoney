@@ -21,7 +21,8 @@ void main() {
 
     final app = (await tester.runAsync(
       () => startApp(
-        openRepository: () => memory.repository,
+        openRepositories: () =>
+            (months: memory.repository, cards: memory.cards),
         openThemeModeStore: openThemeModeStore,
         clock: memory.clock.call,
       ),
@@ -39,7 +40,7 @@ void main() {
     tester,
   ) async {
     final app = await startApp(
-      openRepository: () => throw const FileSystemException('locked'),
+      openRepositories: () => throw const FileSystemException('locked'),
       openThemeModeStore: openThemeModeStore,
       clock: TestClock().call,
     );
@@ -62,7 +63,8 @@ void main() {
 
     final app = (await tester.runAsync(
       () => startApp(
-        openRepository: () => memory.repository,
+        openRepositories: () =>
+            (months: memory.repository, cards: memory.cards),
         openThemeModeStore: openThemeModeStore,
         clock: memory.clock.call,
       ),

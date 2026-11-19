@@ -3,16 +3,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:offmoney/domain/card_color.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import '../support/app_finders.dart';
 import '../support/app_harness.dart';
+import '../support/app_menu.dart';
 import '../support/app_seeds.dart';
 import '../support/backup_fixture.dart';
-
-Future<void> choose(AppHarness app, String menuItem) async {
-  await app.tap(find.byIcon(Icons.more_horiz_rounded));
-  await app.tap(find.text(menuItem));
-}
 
 const importConfirmation = 'Arquivo com 2 meses, mês aberto nov/2026.';
 
@@ -88,6 +86,49 @@ void main() {
       expect(find.text('Backup importado'), findsOneWidget);
       expect(find.text('Condomínio'), findsNothing);
       expect(find.text('TV'), findsOneWidget);
+    }, seed: seedRent);
+
+    testApp(
+      'a file with cards brings them to the rows and to the cards '
+      'screen',
+      (app) async {
+        app.files.fileToOpen = jsonEncode(validBackupWithCards());
+
+        await choose(app, 'Importar backup');
+        await app.tap(find.text('Substituir'));
+
+        final tv = find.descendant(
+          of: find.widgetWithText(ListTile, 'TV'),
+          matching: cardTag('Roxo'),
+        );
+        expect(tv, findsOneWidget);
+        await choose(app, 'Gerenciar cartões');
+        expect(cardTag('Roxo'), findsOneWidget);
+        expect(cardTag('Laranja'), findsNothing);
+        expect(cardTag('Verde'), findsNothing);
+      },
+      seed: (memory) async {
+        await seedRent(memory);
+        await memory.cards.addCard(name: 'Verde', color: CardColor(0x00A868));
+      },
+    );
+
+    testApp('a file with an invalid card is rejected without changes', (
+      app,
+    ) async {
+      final backup = validBackupWithCards();
+      ((backup['cards']! as List<Object?>).first!
+              as Map<String, Object?>)['color'] =
+          '#FFF';
+      app.files.fileToOpen = jsonEncode(backup);
+
+      await choose(app, 'Importar backup');
+
+      expect(
+        find.text('Arquivo inválido: cartões inválidos'),
+        findsOneWidget,
+      );
+      expect(find.text('Condomínio'), findsOneWidget);
     }, seed: seedRent);
 
     testApp(

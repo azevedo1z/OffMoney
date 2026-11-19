@@ -10,17 +10,18 @@ import 'package:offmoney/domain/expense_entry.dart';
 import 'package:offmoney/domain/expense_rules.dart';
 import 'package:offmoney/domain/money.dart';
 import 'package:offmoney/domain/names.dart';
+import 'package:offmoney/domain/payment_card.dart';
+import 'package:offmoney/presentation/expense_form/card_selector.dart';
 import 'package:offmoney/presentation/l10n/generated/app_localizations.dart';
 import 'package:offmoney/presentation/providers.dart';
 import 'package:offmoney/presentation/shared/action_row.dart';
 import 'package:offmoney/presentation/shared/confirm_dialog.dart';
-import 'package:offmoney/presentation/shared/failure.dart';
+import 'package:offmoney/presentation/shared/form_action.dart';
 import 'package:offmoney/presentation/shared/formatters.dart';
 import 'package:offmoney/presentation/shared/grouped_section.dart';
 import 'package:offmoney/presentation/shared/labels.dart';
 import 'package:offmoney/presentation/shared/money_field.dart';
 import 'package:offmoney/presentation/shared/money_input.dart';
-import 'package:offmoney/presentation/shared/navigation.dart';
 import 'package:offmoney/presentation/theme/metrics.dart';
 
 Future<void> openExpenseForm(
@@ -61,6 +62,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
   );
   final _nameFocus = FocusNode();
   late CalendarDate _spentOn = _existingDate ?? ref.read(todayProvider).call();
+  late int? _cardId = _installment?.cardId;
   Set<ExpenseError> _errors = const {};
   bool _currentMissing = false;
   bool _totalMissing = false;
@@ -104,6 +106,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
           amount: amount,
           current: current,
           total: total,
+          cardId: _cardId,
         ),
       ExpenseCategory.installment => null,
     };
@@ -143,22 +146,12 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
   Future<void> _run(
     Future<bool> Function() action, {
     required String doneMessage,
-  }) async {
-    final l10n = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    setState(() => _busy = true);
-    var done = false;
-    try {
-      done = await action();
-    } on Exception catch (error, stack) {
-      reportFailure(messenger, l10n.actionFailed, error, stack);
-    } finally {
-      if (!done && mounted) setState(() => _busy = false);
-    }
-    if (!done || !mounted) return;
-    popIfCurrent(context);
-    messenger.showSnackBar(SnackBar(content: Text(doneMessage)));
-  }
+  }) => runFormAction(
+    context,
+    action: action,
+    doneMessage: doneMessage,
+    onBusyChanged: (busy) => setState(() => _busy = busy),
+  );
 
   Future<bool> _confirm(ExpenseCheck check) {
     final l10n = AppLocalizations.of(context);
@@ -271,7 +264,10 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
                     ),
                     onTap: _pickDate,
                   ),
-                if (_isInstallment) ..._counterFields(l10n),
+                if (_isInstallment) ...[
+                  ..._counterFields(l10n),
+                  _cardField(l10n),
+                ],
               ],
             ),
             if (entry != null)
@@ -371,6 +367,25 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
         _totalMissing ? l10n.errorNumberRequired : totalError,
       ),
     ];
+  }
+
+  Widget _cardField(AppLocalizations l10n) {
+    final cards = ref.watch(cardsProvider).valueOrNull ?? const <PaymentCard>[];
+    final options = [
+      for (final card in cards)
+        if (!card.isArchived || card.id == _cardId) card,
+    ];
+    if (options.isEmpty) {
+      return ListTile(
+        title: Text(l10n.cardLabel),
+        subtitle: Text(l10n.noCardsHint),
+      );
+    }
+    return CardSelector(
+      options: options,
+      selectedId: _cardId,
+      onChanged: _busy ? null : (id) => setState(() => _cardId = id),
+    );
   }
 
   Widget _counterField(

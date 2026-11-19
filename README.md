@@ -59,9 +59,10 @@ The app interface is in Brazilian Portuguese.
 - **Audit line.** The balance is always shown as `(Entrada) - (Fixos + Parcelados + Variáveis) = Saldo`, with the values, pinned at the bottom of the screen.
 - **Month close with a preview.** Before closing, the app lists every effect: variable expenses cleared, installments advancing or finishing, fixed expenses carried over, the closing balance and the next month's income.
 - **Careful input.** A currency field filled from the right, with an empty state distinct from R$ 0,00; confirmation when an expense exceeds the remaining balance, when it looks like a duplicate, and before deleting.
+- **Cards on installments.** Register cards with a name and a color in "Gerenciar cartões" and pick one on each installment; it shows as a tag on the row and in the shared text. A deleted card stays on the installments that already use it.
 - **History.** Closed months are read-only, with their own audit line.
 - **Share.** A plain-text summary of any month, through the Android share sheet.
-- **Backup.** A versioned JSON export of every month, expense and change, and an import that validates the whole file before replacing anything.
+- **Backup.** A versioned JSON export of every month, expense, card and change, and an import that validates the whole file before replacing anything.
 - **Change log.** Every write records the old and new values in the same transaction.
 - **Theme.** Light, dark or following the system, chosen from the menu.
 
@@ -144,7 +145,7 @@ The notes can be edited on the release page afterwards.
 
 - Data lives in a local SQLite database (Drift). CHECK constraints, foreign keys and a unique open month repeat the domain rules as a second line of defense.
 - Android automatic backup and device transfer are off, so the JSON export is the only backup. The exported file is not encrypted: keep it somewhere safe.
-- An import validates the whole file (format, version, integer amounts, months in order, every expense) and replaces all data in one transaction. An invalid file changes nothing.
+- An import validates the whole file (format, version, integer amounts, months in order, every expense and card) and replaces all data in one transaction. An invalid file changes nothing.
 - The schema is versioned in `drift_schemas/`. When tables change, raise `schemaVersion`, write the migration and run `dart run drift_dev make-migrations`.
 
 ## Architecture
@@ -152,8 +153,8 @@ The notes can be edited on the release page afterwards.
 ```text
 lib/
 ├── domain/        Pure Dart rules: money, months, expenses, validation, warnings, the close plan
-├── application/   Use cases, the repository port, the clock and the backup codec
-├── data/          Drift database and the repository implementation
+├── application/   Use cases, the repository ports, the clock and the backup codec
+├── data/          Drift database and the repository implementations
 └── presentation/  Riverpod providers, screens, shared widgets, theme and pt-BR strings
 ```
 

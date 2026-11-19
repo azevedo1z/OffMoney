@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:offmoney/application/card_repository.dart';
 import 'package:offmoney/application/clock.dart';
 import 'package:offmoney/application/month_actions.dart';
 import 'package:offmoney/application/month_repository.dart';
@@ -9,18 +10,21 @@ import 'package:offmoney/presentation/providers.dart';
 import 'package:offmoney/presentation/theme/app_theme.dart';
 import 'package:offmoney/presentation/theme/theme_preference.dart';
 
+typedef Repositories = ({MonthRepository months, CardRepository cards});
+
 Future<Widget> startApp({
-  required MonthRepository Function() openRepository,
+  required Repositories Function() openRepositories,
   required Future<ThemeModeStore> Function() openThemeModeStore,
   required Clock clock,
 }) async {
   try {
-    final repository = openRepository();
-    await StartMonth(repository, clock)();
+    final repositories = openRepositories();
+    await StartMonth(repositories.months, clock)();
     final themeModeStore = await openThemeModeStore();
     return ProviderScope(
       overrides: [
-        monthRepositoryProvider.overrideWithValue(repository),
+        monthRepositoryProvider.overrideWithValue(repositories.months),
+        cardRepositoryProvider.overrideWithValue(repositories.cards),
         themeModeStoreProvider.overrideWithValue(themeModeStore),
         clockProvider.overrideWithValue(clock),
       ],

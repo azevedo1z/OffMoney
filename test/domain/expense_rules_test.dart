@@ -278,6 +278,16 @@ void main() {
       );
     });
 
+    test('an Installment name repeated on another card', () {
+      expect(
+        ExpenseRules.warnings(
+          installment('Monitor', '60,00', 7, 9, cardId: 4),
+          month: month,
+        ),
+        {ExpenseWarning.possibleDuplicate},
+      );
+    });
+
     test('a Variable item with the same name, amount and date', () {
       expect(
         ExpenseRules.warnings(

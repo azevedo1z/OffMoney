@@ -1,9 +1,11 @@
 import 'package:offmoney/domain/calendar_date.dart';
+import 'package:offmoney/domain/card_color.dart';
 import 'package:offmoney/domain/expense.dart';
 import 'package:offmoney/domain/expense_entry.dart';
 import 'package:offmoney/domain/money.dart';
 import 'package:offmoney/domain/month.dart';
 import 'package:offmoney/domain/month_closing.dart';
+import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/domain/reference_month.dart';
 
 final defaultToday = CalendarDate(2026, 11, 7);
@@ -26,12 +28,27 @@ InstallmentExpense installment(
   String name,
   String amount,
   int current,
-  int total,
-) => InstallmentExpense(
+  int total, {
+  int? cardId,
+}) => InstallmentExpense(
   name: name,
   amount: brl(amount),
   current: current,
   total: total,
+  cardId: cardId,
+);
+
+PaymentCard card(
+  String name, {
+  int id = 1,
+  String color = '#8A05BE',
+  bool archived = false,
+}) => PaymentCard(
+  id: id,
+  name: name,
+  color: CardColor.tryParse(color) ?? (throw ArgumentError.value(color)),
+  createdAt: defaultCreatedAt,
+  archivedAt: archived ? defaultCreatedAt : null,
 );
 
 VariableExpense variable(String name, String amount, {CalendarDate? on}) =>

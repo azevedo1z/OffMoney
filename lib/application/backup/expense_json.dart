@@ -7,6 +7,7 @@ abstract final class ExpenseJson {
   static const currentInstallment = 'currentInstallment';
   static const totalInstallments = 'totalInstallments';
   static const spentOn = 'spentOn';
+  static const cardId = 'cardId';
 
   static Map<String, Object?> encode(Expense expense) => {
     category: expense.category.name,
@@ -14,9 +15,10 @@ abstract final class ExpenseJson {
     amountCents: expense.amount.cents,
     ...switch (expense) {
       FixedExpense() => const <String, Object?>{},
-      InstallmentExpense(:final current, :final total) => {
+      InstallmentExpense(:final current, :final total, cardId: final card) => {
         currentInstallment: current,
         totalInstallments: total,
+        cardId: card,
       },
       VariableExpense(spentOn: final date) => {spentOn: date?.iso},
     },

@@ -64,3 +64,39 @@ Map<String, Object?> validBackup() => {
     },
   ],
 };
+
+Map<String, Object?> validBackupWithCards() {
+  final backup = validBackup();
+  final months = backup['months']! as List<Object?>;
+  final open = months.last! as Map<String, Object?>;
+  final expenses = open['expenses']! as List<Object?>;
+  (expenses.first! as Map<String, Object?>)['cardId'] = 1;
+  expenses.add(<String, Object?>{
+    'id': 13,
+    'category': 'fixed',
+    'name': 'Internet',
+    'amountCents': 11000,
+    'createdAt': '2026-11-01T12:00:00.000Z',
+    'updatedAt': '2026-11-01T12:00:00.000Z',
+  });
+  return {
+    ...backup,
+    'version': 2,
+    'cards': [
+      <String, Object?>{
+        'id': 1,
+        'name': 'Roxo',
+        'color': '#8A05BE',
+        'createdAt': '2026-10-05T12:00:00.000Z',
+        'archivedAt': null,
+      },
+      <String, Object?>{
+        'id': 2,
+        'name': 'Laranja',
+        'color': '#FF7A00',
+        'createdAt': '2026-10-06T12:00:00.000Z',
+        'archivedAt': '2026-10-20T12:00:00.000Z',
+      },
+    ],
+  };
+}

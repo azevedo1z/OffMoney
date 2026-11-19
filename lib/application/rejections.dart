@@ -1,3 +1,4 @@
+import 'package:offmoney/domain/card_rules.dart';
 import 'package:offmoney/domain/expense_rules.dart';
 import 'package:offmoney/domain/money.dart';
 import 'package:offmoney/domain/reference_month.dart';
@@ -9,6 +10,15 @@ final class InvalidExpenseException implements Exception {
 
   @override
   String toString() => 'Invalid expense: $errors';
+}
+
+final class InvalidCardException implements Exception {
+  const InvalidCardException(this.errors);
+
+  final Set<CardError> errors;
+
+  @override
+  String toString() => 'Invalid card: $errors';
 }
 
 final class InvalidIncomeException implements Exception {

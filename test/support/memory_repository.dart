@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:offmoney/data/drift_card_repository.dart';
 import 'package:offmoney/data/drift_month_repository.dart';
 import 'package:offmoney/data/offmoney_database.dart';
 import 'package:offmoney/domain/reference_month.dart';
@@ -16,7 +17,8 @@ final class TestClock {
 }
 
 final class MemoryRepository {
-  MemoryRepository._(this.database, this.clock, this.repository);
+  MemoryRepository._(this.database, this.clock, this.repository)
+    : cards = DriftCardRepository(database, clock: clock.call);
 
   static Future<MemoryRepository> open({ReferenceMonth? firstMonth}) async {
     driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -30,6 +32,7 @@ final class MemoryRepository {
   final OffMoneyDatabase database;
   final TestClock clock;
   final DriftMonthRepository repository;
+  final DriftCardRepository cards;
 
   Future<void> close() => database.close();
 }

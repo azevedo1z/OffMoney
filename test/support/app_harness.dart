@@ -55,6 +55,7 @@ final class AppHarness {
       ProviderScope(
         overrides: [
           monthRepositoryProvider.overrideWithValue(harness.repository),
+          cardRepositoryProvider.overrideWithValue(memory.cards),
           clockProvider.overrideWithValue(memory.clock.call),
           backupFilesProvider.overrideWithValue(harness.files),
           themeModeStoreProvider.overrideWithValue(harness.themeModeStore),

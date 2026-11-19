@@ -6,6 +6,9 @@ enum ChangeAction {
   expenseDeleted,
   monthClosed,
   backupImported,
+  cardCreated,
+  cardUpdated,
+  cardArchived,
 }
 
 final class ChangeLogEntry {

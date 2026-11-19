@@ -31,6 +31,30 @@ void main() {
       );
     });
 
+    test('an installment keeps its card when it advances or is renamed', () {
+      final onCard = installment('Monitor', '60,00', 7, 9, cardId: 4);
+
+      expect(
+        onCard.advanced(),
+        installment('Monitor', '60,00', 8, 9, cardId: 4),
+      );
+      expect(
+        onCard.withName('Tela'),
+        installment('Tela', '60,00', 7, 9, cardId: 4),
+      );
+    });
+
+    test('installments that differ only in the card are not equal', () {
+      final onCard = installment('Monitor', '60,00', 7, 9, cardId: 4);
+
+      expect(onCard, isNot(installment('Monitor', '60,00', 7, 9)));
+      expect(onCard, isNot(installment('Monitor', '60,00', 7, 9, cardId: 5)));
+      expect(
+        {onCard, installment('Monitor', '60,00', 7, 9, cardId: 4)},
+        hasLength(1),
+      );
+    });
+
     test('an expense can take another name, keeping everything else', () {
       expect(
         fixed('condomínio', '750,00').withName('Condomínio'),

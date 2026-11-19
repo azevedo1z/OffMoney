@@ -125,6 +125,11 @@ abstract final class AppTheme {
     side: BorderSide(color: scheme.error, width: _outlineWidth),
   );
 
+  static Color tagBackground(ColorScheme scheme) =>
+      scheme.brightness == Brightness.light
+      ? scheme.surfaceContainer
+      : scheme.surfaceContainerHighest;
+
   static ThemeData _build(ColorScheme scheme) {
     final isLight = scheme.brightness == Brightness.light;
     final background = isLight

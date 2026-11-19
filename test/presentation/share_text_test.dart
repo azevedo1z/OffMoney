@@ -23,7 +23,7 @@ void main() {
       ]),
     );
 
-    expect(shareText(month, l10n), r'''
+    expect(shareText(month, const {}, l10n), r'''
 Controle Financeiro - nov/2026
 
 1. Entrada Mensal
@@ -48,9 +48,38 @@ Auditoria de Cálculos
 4.800,00 - (1.700,00 + 190,00 + 110,00) = 2.800,00''');
   });
 
+  test('adds the card name to the installments that have one', () {
+    final month = openMonth(
+      income: brl('1.000,00'),
+      items: entries(<Expense>[
+        installment('Notebook', '250,00', 3, 10, cardId: 1),
+        installment('Geladeira', '189,90', 10, 10, cardId: 2),
+        installment('Sofá', '120,00', 2, 6),
+        installment('Monitor', '60,00', 7, 9, cardId: 9),
+      ]),
+    );
+    final cards = {
+      1: card('Roxo'),
+      2: card('Laranja', id: 2, archived: true),
+    };
+
+    expect(
+      shareText(month, cards, l10n),
+      contains(r'''
+3. Gastos Parcelados
+- Geladeira (10/10, Final) [Laranja]: R$ 189,90
+- Monitor (7/9): R$ 60,00
+- Sofá (2/6): R$ 120,00
+- Notebook (3/10) [Roxo]: R$ 250,00
+Total Gastos Parcelados: R$ 619,90
+'''),
+    );
+  });
+
   test('marks empty sections and a missing income', () {
     final text = shareText(
       openMonth(reference: ReferenceMonth(2027, 1)),
+      const {},
       l10n,
     );
 
@@ -66,6 +95,7 @@ Auditoria de Cálculos
         income: brl('100,00'),
         items: entries([variable('Mercado', '150,00', on: defaultToday)]),
       ),
+      const {},
       l10n,
     );
 

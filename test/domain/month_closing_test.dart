@@ -75,6 +75,39 @@ void main() {
     });
   });
 
+  group('MonthClosing.plan, installments on a card', () {
+    final plan = planOf(
+      MonthClosing.plan(
+        month: openMonth(
+          income: brl('1.000,00'),
+          items: entries([
+            installment('Notebook', '150,00', 6, 10, cardId: 1),
+            installment('Monitor', '60,00', 6, 9, cardId: 2),
+            installment('TV', '120,00', 7, 18),
+            installment('Fone de ouvido', '90,00', 2, 2, cardId: 1),
+          ]),
+        ),
+        newReference: december,
+        newIncome: null,
+        today: defaultToday,
+      ),
+    );
+
+    test('carries each advancing installment with its card', () {
+      expect(plan.newExpenses, [
+        installment('Notebook', '150,00', 7, 10, cardId: 1),
+        installment('Monitor', '60,00', 7, 9, cardId: 2),
+        installment('TV', '120,00', 8, 18),
+      ]);
+    });
+
+    test('drops the last installment whatever its card', () {
+      expect(plan.finishing, [
+        installment('Fone de ouvido', '90,00', 2, 2, cardId: 1),
+      ]);
+    });
+  });
+
   group('MonthClosing.plan, income of the new month', () {
     final month = openMonth(income: brl('4.800,00'));
 
