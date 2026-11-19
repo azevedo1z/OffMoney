@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:offmoney/application/clock.dart';
+import 'package:offmoney/data/drift_card_repository.dart';
 import 'package:offmoney/data/drift_month_repository.dart';
 import 'package:offmoney/data/offmoney_database.dart';
 import 'package:offmoney/domain/reference_month.dart';
@@ -26,6 +27,9 @@ void main() {
       ProviderScope(
         overrides: [
           monthRepositoryProvider.overrideWithValue(repository),
+          cardRepositoryProvider.overrideWithValue(
+            DriftCardRepository(database, clock: systemClock),
+          ),
           themeModeStoreProvider.overrideWithValue(
             FakeThemeModeStore(ThemeMode.system),
           ),

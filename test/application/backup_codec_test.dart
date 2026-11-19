@@ -3,8 +3,11 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:offmoney/application/backup/backup_actions.dart';
 import 'package:offmoney/application/backup/backup_codec.dart';
+import 'package:offmoney/application/card_actions.dart';
 import 'package:offmoney/application/change_log_entry.dart';
 import 'package:offmoney/application/month_actions.dart';
+import 'package:offmoney/domain/card_color.dart';
+import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/domain/reference_month.dart';
 
 import '../support/backup_fixture.dart';
@@ -17,6 +20,12 @@ BackupReading read(Map<String, Object?> backup) =>
 
 Map<String, Object?> month(Map<String, Object?> backup, int index) =>
     (backup['months']! as List<Object?>)[index]! as Map<String, Object?>;
+
+Matcher rejectedAs(BackupProblem problem) => isA<BackupRejected>().having(
+  (rejection) => rejection.problem,
+  'problem',
+  problem,
+);
 
 void main() {
   test('accepts a valid file, including dateless items in closed months', () {
@@ -40,6 +49,194 @@ void main() {
     );
   });
 
+  group('version 1', () {
+    test('has no cards and no installment on a card', () {
+      final snapshot = (read(validBackup()) as BackupAccepted).snapshot;
+
+      expect(snapshot.cards, isEmpty);
+      expect(
+        snapshot.months.last.entries.first.expense,
+        installment('TV', '120,00', 8, 18),
+      );
+    });
+
+    test('does not read a cards or cardId key', () {
+      final backup = validBackup()..['cards'] = 'none';
+      _expenses(backup, 1)[0]['cardId'] = 99;
+      _expenses(backup, 1)[1]['cardId'] = 'none';
+
+      final snapshot = (read(backup) as BackupAccepted).snapshot;
+
+      expect(snapshot.cards, isEmpty);
+      expect(
+        snapshot.months.last.entries.first.expense,
+        installment('TV', '120,00', 8, 18),
+      );
+    });
+  });
+
+  group('version 2', () {
+    test('reads the cards, archived ones included, and the card of each '
+        'installment', () {
+      final snapshot =
+          (read(validBackupWithCards()) as BackupAccepted).snapshot;
+
+      expect(snapshot.cards, [
+        PaymentCard(
+          id: 1,
+          name: 'Roxo',
+          color: CardColor(0x8A05BE),
+          createdAt: DateTime.utc(2026, 10, 5, 12),
+          archivedAt: null,
+        ),
+        PaymentCard(
+          id: 2,
+          name: 'Laranja',
+          color: CardColor(0xFF7A00),
+          createdAt: DateTime.utc(2026, 10, 6, 12),
+          archivedAt: DateTime.utc(2026, 10, 20, 12),
+        ),
+      ]);
+      expect(
+        snapshot.months.last.entries.first.expense,
+        installment('TV', '120,00', 8, 18, cardId: 1),
+      );
+    });
+
+    final accepted = <String, void Function(Map<String, Object?>)>{
+      'an installment without a card': (backup) =>
+          _expenses(backup, 1)[0]['cardId'] = null,
+      'an installment on an archived card': (backup) =>
+          _expenses(backup, 1)[0]['cardId'] = 2,
+      'an archived card with the name of an active one': (backup) =>
+          _cards(backup)[1]['name'] = 'Roxo',
+      'two archived cards with the same name': (backup) => _cards(backup)[0]
+        ..['name'] = 'Laranja'
+        ..['archivedAt'] = '2026-10-21T12:00:00.000Z',
+      'two cards with the same color': (backup) =>
+          _cards(backup)[1]['color'] = '#8A05BE',
+      'a color in lower case without the hash': (backup) =>
+          _cards(backup)[0]['color'] = '8a05be',
+      'no cards at all': (backup) {
+        backup['cards'] = <Object?>[];
+        _expenses(backup, 1)[0]['cardId'] = null;
+      },
+    };
+
+    for (final MapEntry(key: description, value: change) in accepted.entries) {
+      test('accepts $description', () {
+        final backup = validBackupWithCards();
+        change(backup);
+
+        expect(read(backup), isA<BackupAccepted>());
+      });
+    }
+
+    final rejected =
+        <String, (BackupProblem, void Function(Map<String, Object?>))>{
+          'cards that are missing': (
+            BackupProblem.invalidStructure,
+            (backup) => backup.remove('cards'),
+          ),
+          'cards that are not a list': (
+            BackupProblem.invalidStructure,
+            (backup) => backup['cards'] = 'none',
+          ),
+          'a card that is not an object': (
+            BackupProblem.invalidStructure,
+            (backup) => backup['cards'] = <Object?>['none'],
+          ),
+          'a card without a name': (
+            BackupProblem.invalidStructure,
+            (backup) => _cards(backup)[0].remove('name'),
+          ),
+          'a card without a color': (
+            BackupProblem.invalidStructure,
+            (backup) => _cards(backup)[0].remove('color'),
+          ),
+          'a card without a creation time': (
+            BackupProblem.invalidStructure,
+            (backup) => _cards(backup)[0].remove('createdAt'),
+          ),
+          'a card color written as a number': (
+            BackupProblem.invalidStructure,
+            (backup) => _cards(backup)[0]['color'] = 9045438,
+          ),
+          'a card archived at a time that does not exist': (
+            BackupProblem.invalidStructure,
+            (backup) => _cards(backup)[1]['archivedAt'] = 'yesterday',
+          ),
+          'a repeated card id': (
+            BackupProblem.invalidStructure,
+            (backup) => _cards(backup)[1]['id'] = 1,
+          ),
+          'a card id of zero': (
+            BackupProblem.invalidStructure,
+            (backup) => _cards(backup)[1]['id'] = 0,
+          ),
+          'a card id above the limit': (
+            BackupProblem.invalidStructure,
+            (backup) => _cards(backup)[1]['id'] = 2147483648,
+          ),
+          'a card on a Fixed item': (
+            BackupProblem.invalidStructure,
+            (backup) => _expenses(backup, 1)[2]['cardId'] = 1,
+          ),
+          'a card on a Variable item': (
+            BackupProblem.invalidStructure,
+            (backup) => _expenses(backup, 1)[1]['cardId'] = 1,
+          ),
+          'a card of an installment written as text': (
+            BackupProblem.invalidStructure,
+            (backup) => _expenses(backup, 1)[0]['cardId'] = '1',
+          ),
+          'an installment on a card that is not in the file': (
+            BackupProblem.invalidCards,
+            (backup) => _expenses(backup, 1)[0]['cardId'] = 99,
+          ),
+          'a card with an empty name': (
+            BackupProblem.invalidCards,
+            (backup) => _cards(backup)[0]['name'] = '',
+          ),
+          'a card name with extra spaces': (
+            BackupProblem.invalidCards,
+            (backup) => _cards(backup)[0]['name'] = 'Roxo ',
+          ),
+          'a card name above the limit': (
+            BackupProblem.invalidCards,
+            (backup) => _cards(backup)[0]['name'] = 'a' * 21,
+          ),
+          'an archived card with an invalid name': (
+            BackupProblem.invalidCards,
+            (backup) => _cards(backup)[1]['name'] = 'a' * 21,
+          ),
+          'two active cards with the same name': (
+            BackupProblem.invalidCards,
+            (backup) => _cards(backup)[1]
+              ..['name'] = 'ROXO'
+              ..['archivedAt'] = null,
+          ),
+          'a card color in the short form': (
+            BackupProblem.invalidCards,
+            (backup) => _cards(backup)[0]['color'] = '#FFF',
+          ),
+          'a card color with alpha': (
+            BackupProblem.invalidCards,
+            (backup) => _cards(backup)[0]['color'] = '#FF8A05BE',
+          ),
+        };
+
+    for (final MapEntry(key: description, value: (problem, corrupt))
+        in rejected.entries) {
+      test('rejects $description', () {
+        final backup = validBackupWithCards();
+        corrupt(backup);
+
+        expect(read(backup), rejectedAs(problem));
+      });
+    }
+  });
+
   test('accepts a file saved with a byte order mark', () {
     final reading = BackupCodec.decode(
       '\uFEFF${jsonEncode(validBackup())}',
@@ -58,7 +255,7 @@ void main() {
           ),
           'an unknown version': (
             BackupProblem.unknownVersion,
-            (backup) => backup['version'] = 2,
+            (backup) => backup['version'] = 3,
           ),
           'an amount written as a decimal': (
             BackupProblem.invalidStructure,
@@ -223,14 +420,7 @@ void main() {
         final backup = validBackup();
         corrupt(backup);
 
-        expect(
-          read(backup),
-          isA<BackupRejected>().having(
-            (rejection) => rejection.problem,
-            'problem',
-            problem,
-          ),
-        );
+        expect(read(backup), rejectedAs(problem));
       });
     }
 
@@ -251,9 +441,16 @@ void main() {
   test('export then import gives back the same data', () async {
     final memory = await MemoryRepository.open();
     addTearDown(memory.close);
+    final saveCard = SaveCard(memory.cards);
+    await saveCard(name: 'Roxo', color: '#8A05BE');
+    await saveCard(name: 'Laranja', color: '#FF7A00');
     await memory.repository.setIncome(brl('4.800,00'));
-    await memory.repository.addExpense(installment('TV', '120,00', 8, 18));
+    await memory.repository.addExpense(
+      installment('TV', '120,00', 8, 18, cardId: 2),
+    );
+    await memory.repository.addExpense(installment('Monitor', '60,00', 7, 9));
     memory.clock.advance();
+    await ArchiveCard(memory.cards)(2);
     await memory.repository.applyClose(
       planOf(
         PrepareClose(memory.clock.call)(await memory.repository.openMonth()),
@@ -266,7 +463,7 @@ void main() {
     final tv = (await memory.repository.openMonth()).entries.first;
     await memory.repository.updateExpense(
       tv.id,
-      installment('TV', '110,00', 8, 18),
+      installment('TV', '110,00', 9, 18, cardId: 2),
     );
     final export = ExportBackup(memory.repository, memory.clock.call);
 
@@ -277,11 +474,47 @@ void main() {
 
     final original = await memory.repository.snapshot();
     final restored = (reading as BackupAccepted).snapshot;
+    expect(restored.cards, original.cards);
+    expect(restored.cards, hasLength(2));
     expect(describeMonths(restored), describeMonths(original));
     expect(
       describeChanges(restored.changeLog),
       describeChanges(original.changeLog),
     );
+  });
+
+  test('the file is written as version 2, with the cards and the card of '
+      'each installment', () async {
+    final memory = await MemoryRepository.open();
+    addTearDown(memory.close);
+    await SaveCard(memory.cards)(name: 'Roxo', color: '#8A05BE');
+    await memory.repository.addExpense(
+      installment('TV', '120,00', 8, 18, cardId: 1),
+    );
+    await memory.repository.addExpense(installment('Monitor', '60,00', 7, 9));
+    await memory.repository.addExpense(fixed('Internet', '110,00'));
+
+    final file =
+        jsonDecode(
+              await ExportBackup(memory.repository, memory.clock.call)(),
+            )
+            as Map<String, Object?>;
+
+    expect(file['format'], 'gemify-backup');
+    expect(file['version'], 2);
+    expect(file['cards'], [
+      {
+        'id': 1,
+        'name': 'Roxo',
+        'color': '#8A05BE',
+        'createdAt': '2026-11-07T12:00:00.000Z',
+        'archivedAt': null,
+      },
+    ]);
+    final [tv, monitor, internet] = _expenses(file, 0);
+    expect(tv, containsPair('cardId', 1));
+    expect(monitor, containsPair('cardId', null));
+    expect(internet.containsKey('cardId'), isFalse);
   });
 
   test('the file is named after the day of the export', () async {
@@ -306,6 +539,11 @@ List<Map<String, Object?>> _expenses(Map<String, Object?> backup, int index) =>
       for (final item in month(backup, index)['expenses']! as List<Object?>)
         item! as Map<String, Object?>,
     ];
+
+List<Map<String, Object?>> _cards(Map<String, Object?> backup) => [
+  for (final item in backup['cards']! as List<Object?>)
+    item! as Map<String, Object?>,
+];
 
 List<Map<String, Object?>> _changes(Map<String, Object?> backup) => [
   for (final item in backup['changeLog']! as List<Object?>)

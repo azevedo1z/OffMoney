@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:offmoney/data/offmoney_database.steps.dart';
 
 part 'offmoney_database.g.dart';
 
@@ -36,6 +37,25 @@ class Months extends Table {
   ];
 }
 
+@DataClassName('CardRow')
+class Cards extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  TextColumn get name => text()();
+
+  IntColumn get colorRgb => integer()();
+
+  DateTimeColumn get createdAt => dateTime()();
+
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(name) BETWEEN 1 AND 20)',
+    'CHECK (color_rgb BETWEEN 0 AND 16777215)',
+  ];
+}
+
 @DataClassName('ExpenseRow')
 @TableIndex(name: 'expenses_by_month', columns: {#monthId, #category})
 class Expenses extends Table {
@@ -58,6 +78,15 @@ class Expenses extends Table {
   DateTimeColumn get createdAt => dateTime()();
 
   DateTimeColumn get updatedAt => dateTime()();
+
+  IntColumn get cardId => integer()
+      .nullable()
+      .references(Cards, #id)
+      .check(
+        const CustomExpression(
+          "card_id IS NULL OR category = 'installment'",
+        ),
+      )();
 
   @override
   List<String> get customConstraints => const [
@@ -88,15 +117,24 @@ class ChangeLog extends Table {
   TextColumn get afterJson => text().nullable()();
 }
 
-@DriftDatabase(tables: [Months, Expenses, ChangeLog])
+@DriftDatabase(tables: [Months, Cards, Expenses, ChangeLog])
 class OffMoneyDatabase extends _$OffMoneyDatabase {
   OffMoneyDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (migrator, from, to) =>
+        transaction(() => _upgrade(migrator, from, to)),
     beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),
+  );
+
+  static final OnUpgrade _upgrade = stepByStep(
+    from1To2: (migrator, schema) async {
+      await migrator.createTable(schema.cards);
+      await migrator.addColumn(schema.expenses, schema.expenses.cardId);
+    },
   );
 }

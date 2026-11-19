@@ -43,10 +43,12 @@ final class InstallmentExpense extends Expense {
     required super.amount,
     required this.current,
     required this.total,
+    this.cardId,
   });
 
   final int current;
   final int total;
+  final int? cardId;
 
   bool get isLast => current == total;
 
@@ -61,6 +63,7 @@ final class InstallmentExpense extends Expense {
     amount: amount,
     current: current,
     total: total,
+    cardId: cardId,
   );
 
   InstallmentExpense advanced() => InstallmentExpense(
@@ -68,6 +71,7 @@ final class InstallmentExpense extends Expense {
     amount: amount,
     current: current + 1,
     total: total,
+    cardId: cardId,
   );
 
   @override
@@ -76,13 +80,16 @@ final class InstallmentExpense extends Expense {
       other.name == name &&
       other.amount == amount &&
       other.current == current &&
-      other.total == total;
+      other.total == total &&
+      other.cardId == cardId;
 
   @override
-  int get hashCode => Object.hash(category, name, amount, current, total);
+  int get hashCode =>
+      Object.hash(category, name, amount, current, total, cardId);
 
   @override
-  String toString() => 'InstallmentExpense($name, $amount, $current/$total)';
+  String toString() =>
+      'InstallmentExpense($name, $amount, $current/$total, card $cardId)';
 }
 
 final class VariableExpense extends Expense {

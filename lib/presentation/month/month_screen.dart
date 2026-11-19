@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:offmoney/application/rejections.dart';
 import 'package:offmoney/domain/month.dart';
+import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/presentation/backup/backup_actions.dart';
+import 'package:offmoney/presentation/cards/cards_screen.dart';
 import 'package:offmoney/presentation/close_month/close_month_screen.dart';
 import 'package:offmoney/presentation/expense_form/expense_form_screen.dart';
 import 'package:offmoney/presentation/history/history_screen.dart';
@@ -22,21 +24,30 @@ class MonthScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) =>
-      switch (ref.watch(openMonthProvider)) {
-        AsyncData(:final value) => _OpenMonthPage(month: value),
-        AsyncError() => Scaffold(
+      switch ((ref.watch(openMonthProvider), ref.watch(cardsByIdProvider))) {
+        (AsyncData(value: final month), AsyncData(value: final cards)) =>
+          _OpenMonthPage(month: month, cards: cards),
+        (AsyncError(), _) || (_, AsyncError()) => Scaffold(
           body: Center(child: Text(AppLocalizations.of(context).loadFailed)),
         ),
         _ => const Scaffold(body: Center(child: CircularProgressIndicator())),
       };
 }
 
-enum _MenuAction { changeReference, exportBackup, importBackup, theme, about }
+enum _MenuAction {
+  changeReference,
+  manageCards,
+  exportBackup,
+  importBackup,
+  theme,
+  about,
+}
 
 class _OpenMonthPage extends ConsumerWidget {
-  const _OpenMonthPage({required this.month});
+  const _OpenMonthPage({required this.month, required this.cards});
 
   final Month month;
+  final Map<int, PaymentCard> cards;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -54,7 +65,7 @@ class _OpenMonthPage extends ConsumerWidget {
           IconButton(
             tooltip: l10n.share,
             onPressed: () => SharePlus.instance.share(
-              ShareParams(text: shareText(month, l10n)),
+              ShareParams(text: shareText(month, cards, l10n)),
             ),
             icon: const Icon(Icons.ios_share_rounded),
           ),
@@ -62,6 +73,9 @@ class _OpenMonthPage extends ConsumerWidget {
             icon: const Icon(Icons.more_horiz_rounded),
             onSelected: (action) => switch (action) {
               _MenuAction.changeReference => _changeReference(context, ref),
+              _MenuAction.manageCards => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const CardsScreen()),
+              ),
               _MenuAction.exportBackup => exportBackup(context, ref),
               _MenuAction.importBackup => importBackup(context, ref),
               _MenuAction.theme => _pickTheme(context, ref),
@@ -75,6 +89,10 @@ class _OpenMonthPage extends ConsumerWidget {
               PopupMenuItem(
                 value: _MenuAction.changeReference,
                 child: Text(l10n.changeReference),
+              ),
+              PopupMenuItem(
+                value: _MenuAction.manageCards,
+                child: Text(l10n.manageCards),
               ),
               PopupMenuItem(
                 value: _MenuAction.exportBackup,
@@ -98,6 +116,7 @@ class _OpenMonthPage extends ConsumerWidget {
       ),
       body: MonthView(
         month: month,
+        cards: cards,
         onEditIncome: () => editIncome(context, current: month.income),
         onAdd: (category) => openExpenseForm(context, category),
         onEdit: (entry) =>

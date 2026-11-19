@@ -1,4 +1,5 @@
 import 'package:offmoney/application/month_actions.dart';
+import 'package:offmoney/domain/card_color.dart';
 
 import 'app_harness.dart';
 import 'builders.dart';
@@ -18,6 +19,11 @@ Future<void> seedSampleMonth(MemoryRepository memory) async {
 Future<void> seedRent(MemoryRepository memory) async {
   await memory.repository.setIncome(brl('1.000,00'));
   await memory.repository.addExpense(fixed('Condomínio', '750,00'));
+}
+
+Future<void> seedCards(MemoryRepository memory) async {
+  await memory.cards.addCard(name: 'Roxo', color: CardColor(0x8A05BE));
+  await memory.cards.addCard(name: 'Laranja', color: CardColor(0xFF7A00));
 }
 
 Future<void> seedOverdrawn(MemoryRepository memory) async {

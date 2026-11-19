@@ -6,6 +6,8 @@ import 'package:offmoney/application/backup/expense_json.dart';
 import 'package:offmoney/application/change_log_entry.dart';
 import 'package:offmoney/application/clock.dart';
 import 'package:offmoney/application/month_repository.dart';
+import 'package:offmoney/data/card_rows.dart';
+import 'package:offmoney/data/change_log_writer.dart';
 import 'package:offmoney/data/offmoney_database.dart';
 import 'package:offmoney/domain/calendar_date.dart';
 import 'package:offmoney/domain/expense.dart';
@@ -18,11 +20,21 @@ import 'package:offmoney/domain/reference_month.dart';
 
 typedef _MonthGroup = ({MonthRow month, List<ExpenseEntry> entries});
 
+typedef _ExpenseDetails = ({
+  int? current,
+  int? total,
+  String? spentOn,
+  int? cardId,
+});
+
 final class DriftMonthRepository implements MonthRepository {
-  DriftMonthRepository(this._db, {required Clock clock}) : _clock = clock;
+  DriftMonthRepository(this._db, {required Clock clock})
+    : _clock = clock,
+      _log = ChangeLogWriter(_db, clock);
 
   final OffMoneyDatabase _db;
   final Clock _clock;
+  final ChangeLogWriter _log;
 
   static final String _open = MonthStatus.open.name;
   static final String _closed = MonthStatus.closed.name;
@@ -271,11 +283,13 @@ final class DriftMonthRepository implements MonthRepository {
 
   @override
   Future<BackupSnapshot> snapshot() => _db.transaction(() async {
+    final cards = await CardRows.inCreationOrder(_db).get();
     final months = _monthsOf(await _monthsWhere(const Constant(true)).get());
     final log = await (_db.select(
       _db.changeLog,
     )..orderBy([(entry) => OrderingTerm.asc(entry.id)])).get();
     return BackupSnapshot(
+      cards: [for (final row in cards) CardRows.toCard(row)],
       months: months,
       changeLog: [for (final row in log) _changeLogEntryOf(row)],
     );
@@ -286,8 +300,12 @@ final class DriftMonthRepository implements MonthRepository {
     await _db.delete(_db.changeLog).go();
     await _db.delete(_db.expenses).go();
     await _db.delete(_db.months).go();
+    await _db.delete(_db.cards).go();
     await _db.batch((batch) {
       batch
+        ..insertAll(_db.cards, [
+          for (final card in snapshot.cards) CardRows.toInsert(card),
+        ])
         ..insertAll(_db.months, [
           for (final month in snapshot.months) _monthInsertOf(month),
         ])
@@ -309,6 +327,7 @@ final class DriftMonthRepository implements MonthRepository {
       entityId: null,
       after: jsonEncode({
         'months': snapshot.months.length,
+        'cards': snapshot.cards.length,
         'changeLogEntries': snapshot.changeLog.length,
       }),
     );
@@ -380,6 +399,7 @@ final class DriftMonthRepository implements MonthRepository {
         amount: amount,
         current: _stored(row.currentInstallment, 'current_installment'),
         total: _stored(row.totalInstallments, 'total_installments'),
+        cardId: row.cardId,
       ),
       ExpenseCategory.variable => VariableExpense(
         name: row.name,
@@ -402,6 +422,7 @@ final class DriftMonthRepository implements MonthRepository {
       currentInstallment: Value(details.current),
       totalInstallments: Value(details.total),
       spentOn: Value(details.spentOn),
+      cardId: Value(details.cardId),
       createdAt: now,
       updatedAt: now,
     );
@@ -415,24 +436,26 @@ final class DriftMonthRepository implements MonthRepository {
       currentInstallment: Value(details.current),
       totalInstallments: Value(details.total),
       spentOn: Value(details.spentOn),
+      cardId: Value(details.cardId),
       updatedAt: Value(now),
     );
   }
 
-  ({int? current, int? total, String? spentOn}) _detailsOf(Expense expense) =>
-      switch (expense) {
-        FixedExpense() => (current: null, total: null, spentOn: null),
-        InstallmentExpense(:final current, :final total) => (
-          current: current,
-          total: total,
-          spentOn: null,
-        ),
-        VariableExpense(:final spentOn) => (
-          current: null,
-          total: null,
-          spentOn: spentOn?.iso,
-        ),
-      };
+  _ExpenseDetails _detailsOf(Expense expense) => switch (expense) {
+    FixedExpense() => (current: null, total: null, spentOn: null, cardId: null),
+    InstallmentExpense(:final current, :final total, :final cardId) => (
+      current: current,
+      total: total,
+      spentOn: null,
+      cardId: cardId,
+    ),
+    VariableExpense(:final spentOn) => (
+      current: null,
+      total: null,
+      spentOn: spentOn?.iso,
+      cardId: null,
+    ),
+  };
 
   MonthsCompanion _monthInsertOf(Month month) => MonthsCompanion.insert(
     id: Value(month.id),
@@ -486,25 +509,6 @@ final class DriftMonthRepository implements MonthRepository {
             (month) => month.id.equals(id) & month.status.equals(_open),
           ))
           .write(changes);
-
-  Future<void> _log(
-    ChangeAction action, {
-    required int? monthId,
-    required int? entityId,
-    String? before,
-    String? after,
-  }) => _db
-      .into(_db.changeLog)
-      .insert(
-        ChangeLogCompanion.insert(
-          occurredAt: _clock(),
-          monthId: Value(monthId),
-          action: action.name,
-          entityId: Value(entityId),
-          beforeJson: Value(before),
-          afterJson: Value(after),
-        ),
-      );
 
   static void _expectOne(int affectedRows) {
     if (affectedRows != 1) {

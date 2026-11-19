@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:offmoney/application/backup/backup_actions.dart';
+import 'package:offmoney/application/card_actions.dart';
+import 'package:offmoney/application/card_repository.dart';
 import 'package:offmoney/application/clock.dart';
 import 'package:offmoney/application/month_actions.dart';
 import 'package:offmoney/application/month_repository.dart';
 import 'package:offmoney/domain/calendar_date.dart';
 import 'package:offmoney/domain/expense.dart';
 import 'package:offmoney/domain/month.dart';
+import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/presentation/backup/backup_files.dart';
 import 'package:offmoney/presentation/theme/theme_preference.dart';
 
@@ -14,6 +17,10 @@ final Provider<Clock> clockProvider = Provider((ref) => systemClock);
 
 final Provider<MonthRepository> monthRepositoryProvider = Provider(
   (ref) => throw UnimplementedError('Provide the repository at startup'),
+);
+
+final Provider<CardRepository> cardRepositoryProvider = Provider(
+  (ref) => throw UnimplementedError('Provide the card repository at startup'),
 );
 
 final Provider<CalendarDate Function()> todayProvider = Provider((ref) {
@@ -41,6 +48,27 @@ usedNamesProvider = FutureProvider.autoDispose
     .family<List<String>, ExpenseCategory>(
       (ref, category) => ref.watch(monthRepositoryProvider).usedNames(category),
     );
+
+final StreamProvider<List<PaymentCard>> cardsProvider = StreamProvider(
+  (ref) => ref.watch(cardRepositoryProvider).watchCards(),
+);
+
+final Provider<AsyncValue<List<PaymentCard>>> activeCardsProvider = Provider(
+  (ref) => ref
+      .watch(cardsProvider)
+      .whenData(
+        (cards) => [
+          for (final card in cards)
+            if (!card.isArchived) card,
+        ],
+      ),
+);
+
+final Provider<AsyncValue<Map<int, PaymentCard>>> cardsByIdProvider = Provider(
+  (ref) => ref
+      .watch(cardsProvider)
+      .whenData((cards) => {for (final card in cards) card.id: card}),
+);
 
 final Provider<SetIncome> setIncomeProvider = Provider(
   (ref) => SetIncome(ref.watch(monthRepositoryProvider)),
@@ -75,6 +103,14 @@ final Provider<PrepareClose> prepareCloseProvider = Provider(
 
 final Provider<ConfirmClose> confirmCloseProvider = Provider(
   (ref) => ConfirmClose(ref.watch(monthRepositoryProvider)),
+);
+
+final Provider<SaveCard> saveCardProvider = Provider(
+  (ref) => SaveCard(ref.watch(cardRepositoryProvider)),
+);
+
+final Provider<ArchiveCard> archiveCardProvider = Provider(
+  (ref) => ArchiveCard(ref.watch(cardRepositoryProvider)),
 );
 
 final Provider<ExportBackup> exportBackupProvider = Provider(

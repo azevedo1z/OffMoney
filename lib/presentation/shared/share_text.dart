@@ -1,13 +1,19 @@
 import 'package:offmoney/domain/expense.dart';
 import 'package:offmoney/domain/expense_ordering.dart';
 import 'package:offmoney/domain/month.dart';
+import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/presentation/l10n/generated/app_localizations.dart';
+import 'package:offmoney/presentation/shared/expense_card.dart';
 import 'package:offmoney/presentation/shared/formatters.dart';
 import 'package:offmoney/presentation/shared/labels.dart';
 
 const _incomeSection = 1;
 
-String shareText(Month month, AppLocalizations l10n) {
+String shareText(
+  Month month,
+  Map<int, PaymentCard> cards,
+  AppLocalizations l10n,
+) {
   final summary = month.summary;
   final income = summary.income;
   final sorted = ExpenseOrdering.sorted(month.entries);
@@ -37,7 +43,7 @@ String shareText(Month month, AppLocalizations l10n) {
     for (final expense in expenses) {
       buffer.writeln(
         l10n.shareExpenseLine(
-          _nameOf(expense, l10n),
+          _nameOf(expense, cards, l10n),
           formatMoney(expense.amount),
         ),
       );
@@ -56,19 +62,30 @@ String shareText(Month month, AppLocalizations l10n) {
 
 int _sectionOf(ExpenseCategory category) => _incomeSection + 1 + category.index;
 
-String _nameOf(Expense expense, AppLocalizations l10n) => switch (expense) {
-  final InstallmentExpense installment when installment.isLast =>
-    l10n.shareFinalInstallmentName(
-      installment.name,
-      installmentCounter(installment),
-      l10n.finalInstallment,
-    ),
-  final InstallmentExpense installment => l10n.shareInstallmentName(
-    installment.name,
-    installmentCounter(installment),
-  ),
-  FixedExpense() || VariableExpense() => expense.name,
-};
+String _nameOf(
+  Expense expense,
+  Map<int, PaymentCard> cards,
+  AppLocalizations l10n,
+) {
+  final name = _nameWithCounter(expense, l10n);
+  final card = cardOf(expense, cards);
+  return card == null ? name : l10n.shareNameOnCard(name, card.name);
+}
+
+String _nameWithCounter(Expense expense, AppLocalizations l10n) =>
+    switch (expense) {
+      final InstallmentExpense installment when installment.isLast =>
+        l10n.shareFinalInstallmentName(
+          installment.name,
+          installmentCounter(installment),
+          l10n.finalInstallment,
+        ),
+      final InstallmentExpense installment => l10n.shareInstallmentName(
+        installment.name,
+        installmentCounter(installment),
+      ),
+      FixedExpense() || VariableExpense() => expense.name,
+    };
 
 String _totalLine(
   ExpenseCategory category,

@@ -92,23 +92,25 @@ class ClosedMonthScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    return switch (ref.watch(monthProvider(monthId))) {
-      AsyncData(value: final month) => Scaffold(
-        appBar: AppBar(
-          actions: [
-            IconButton(
-              tooltip: l10n.share,
-              onPressed: () => SharePlus.instance.share(
-                ShareParams(text: shareText(month, l10n)),
+    final month = ref.watch(monthProvider(monthId));
+    return switch ((month, ref.watch(cardsByIdProvider))) {
+      (AsyncData(value: final month), AsyncData(value: final cards)) =>
+        Scaffold(
+          appBar: AppBar(
+            actions: [
+              IconButton(
+                tooltip: l10n.share,
+                onPressed: () => SharePlus.instance.share(
+                  ShareParams(text: shareText(month, cards, l10n)),
+                ),
+                icon: const Icon(Icons.ios_share_rounded),
               ),
-              icon: const Icon(Icons.ios_share_rounded),
-            ),
-          ],
+            ],
+          ),
+          body: MonthView(month: month, cards: cards),
+          bottomNavigationBar: AuditBar(summary: month.summary),
         ),
-        body: MonthView(month: month),
-        bottomNavigationBar: AuditBar(summary: month.summary),
-      ),
-      AsyncError() => Scaffold(
+      (AsyncError(), _) || (_, AsyncError()) => Scaffold(
         appBar: AppBar(),
         body: Center(child: Text(l10n.loadFailed)),
       ),

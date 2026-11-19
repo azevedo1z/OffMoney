@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:offmoney/application/card_actions.dart';
 import 'package:offmoney/application/change_log_entry.dart';
 import 'package:offmoney/application/month_actions.dart';
 import 'package:offmoney/domain/expense.dart';
@@ -25,6 +26,8 @@ final class CycleScenario {
   late final prepareClose = PrepareClose(memory.clock.call);
   late final confirmClose = ConfirmClose(memory.repository);
   late final delete = DeleteExpense(memory.repository);
+  late final saveCard = SaveCard(memory.cards);
+  late final archiveCard = ArchiveCard(memory.cards);
 
   Future<Month> openMonth() => memory.repository.openMonth();
 
@@ -179,6 +182,54 @@ void main() {
         month: month,
       ),
       {ExpenseWarning.exceedsBalance},
+    );
+  });
+
+  test('AT6: installments keep their cards across two closes', () async {
+    await cycle.saveCard(name: 'Roxo', color: '#8A05BE');
+    await cycle.saveCard(name: 'Laranja', color: '#FF7A00');
+    await cycle.setIncome(brl('5.000,00'));
+    for (final expense in [
+      installment('Notebook', '150,00', 6, 10, cardId: 1),
+      installment('Armário', '70,00', 9, 10, cardId: 2),
+      installment('Fone de ouvido', '90,00', 2, 2, cardId: 1),
+      installment('TV', '120,00', 7, 18),
+    ]) {
+      await cycle.save(expense);
+    }
+
+    await cycle.confirmClose(await cycle.plan());
+    await cycle.archiveCard(2);
+    await cycle.saveCard(name: 'Lilás', color: '#C8A2C8', replacingId: 1);
+
+    final november = await cycle.openMonth();
+    expect(expensesOf(november, ExpenseCategory.installment), [
+      installment('Notebook', '150,00', 7, 10, cardId: 1),
+      installment('Armário', '70,00', 10, 10, cardId: 2),
+      installment('TV', '120,00', 8, 18),
+    ]);
+    expect(november.summary.installmentTotal, brl('340,00'));
+    expect(november.summary.balance, brl('4.660,00'));
+
+    await cycle.confirmClose(await cycle.plan());
+
+    final december = await cycle.openMonth();
+    expect(expensesOf(december, ExpenseCategory.installment), [
+      installment('Notebook', '150,00', 8, 10, cardId: 1),
+      installment('TV', '120,00', 9, 18),
+    ]);
+    expect(december.summary.installmentTotal, brl('270,00'));
+    expect(december.summary.balance, brl('4.730,00'));
+    final closedNovember = await memory.repository
+        .watchMonth(november.id)
+        .first;
+    expect(closedNovember.entries, november.entries);
+    expect(
+      [
+        for (final card in await memory.cards.cards())
+          '${card.name}${card.isArchived ? ' archived' : ''}',
+      ],
+      ['Lilás', 'Laranja archived'],
     );
   });
 }

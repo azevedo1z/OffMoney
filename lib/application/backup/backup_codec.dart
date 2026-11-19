@@ -1,9 +1,12 @@
 import 'dart:convert';
 
 import 'package:offmoney/application/backup/backup_snapshot.dart';
+import 'package:offmoney/application/backup/card_json.dart';
 import 'package:offmoney/application/backup/expense_json.dart';
 import 'package:offmoney/application/change_log_entry.dart';
 import 'package:offmoney/domain/calendar_date.dart';
+import 'package:offmoney/domain/card_color.dart';
+import 'package:offmoney/domain/card_rules.dart';
 import 'package:offmoney/domain/expense.dart';
 import 'package:offmoney/domain/expense_entry.dart';
 import 'package:offmoney/domain/expense_rules.dart';
@@ -12,12 +15,14 @@ import 'package:offmoney/domain/money.dart';
 import 'package:offmoney/domain/month.dart';
 import 'package:offmoney/domain/month_timeline.dart';
 import 'package:offmoney/domain/names.dart';
+import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/domain/reference_month.dart';
 
 enum BackupProblem {
   notOffMoneyBackup,
   unknownVersion,
   invalidStructure,
+  invalidCards,
   invalidTimeline,
   invalidExpenses,
   invalidChangeLog,
@@ -42,9 +47,20 @@ final class BackupRejected extends BackupReading {
   String toString() => 'BackupRejected($problem)';
 }
 
+typedef _CardDraft = ({
+  int id,
+  String name,
+  CardColor? color,
+  DateTime createdAt,
+  DateTime? archivedAt,
+});
+
+typedef _CardIdReader = int? Function(_Fields expense);
+
 abstract final class BackupCodec {
   static const format = 'gemify-backup';
-  static const version = 1;
+  static const version = 2;
+  static const _versionWithoutCards = 1;
   static const _maxRecordId = 0x7FFFFFFF;
   static const _byteOrderMark = '\uFEFF';
 
@@ -55,6 +71,7 @@ abstract final class BackupCodec {
     'format': format,
     'version': version,
     'exportedAt': exportedAt.toUtc().toIso8601String(),
+    'cards': [for (final card in snapshot.cards) CardJson.encode(card)],
     'months': [for (final month in snapshot.months) _encodeMonth(month)],
     'changeLog': [
       for (final entry in snapshot.changeLog) _encodeChange(entry),
@@ -67,35 +84,67 @@ abstract final class BackupCodec {
       if (root.optional<String>('format') != format) {
         return const BackupRejected(BackupProblem.notOffMoneyBackup);
       }
-      if (root.optional<int>('version') != version) {
-        return const BackupRejected(BackupProblem.unknownVersion);
-      }
-      final months = [
-        for (final item in root.list('months')) _decodeMonth(item),
-      ];
-      final changeLog = [
-        for (final item in root.list('changeLog')) _decodeChange(item),
-      ];
-      return _validate(
-        BackupSnapshot(months: months, changeLog: changeLog),
-        today,
-      );
+      return switch (root.optional<int>('version')) {
+        _versionWithoutCards => _read(
+          root,
+          today,
+          cards: const [],
+          cardIdOf: _noCardId,
+        ),
+        version => _read(
+          root,
+          today,
+          cards: [for (final item in root.list('cards')) _decodeCard(item)],
+          cardIdOf: _storedCardId,
+        ),
+        _ => const BackupRejected(BackupProblem.unknownVersion),
+      };
     } on FormatException {
       return const BackupRejected(BackupProblem.invalidStructure);
     }
   }
 
+  static BackupReading _read(
+    _Fields root,
+    CalendarDate today, {
+    required List<_CardDraft> cards,
+    required _CardIdReader cardIdOf,
+  }) => _validate(
+    cards: cards,
+    months: [
+      for (final item in root.list('months')) _decodeMonth(item, cardIdOf),
+    ],
+    changeLog: [
+      for (final item in root.list('changeLog')) _decodeChange(item),
+    ],
+    today: today,
+  );
+
+  static int? _noCardId(_Fields expense) => null;
+
+  static int? _storedCardId(_Fields expense) =>
+      expense.optional(ExpenseJson.cardId);
+
   static String _withoutByteOrderMark(String text) =>
       text.startsWith(_byteOrderMark) ? text.substring(1) : text;
 
-  static BackupReading _validate(BackupSnapshot snapshot, CalendarDate today) {
-    final months = snapshot.months;
+  static BackupReading _validate({
+    required List<_CardDraft> cards,
+    required List<Month> months,
+    required List<ChangeLogEntry> changeLog,
+    required CalendarDate today,
+  }) {
     final entries = [for (final month in months) ...month.entries];
-    if (!_validIds([for (final month in months) month.id]) ||
+    if (!_validIds([for (final card in cards) card.id]) ||
+        !_validIds([for (final month in months) month.id]) ||
         !_validIds([for (final entry in entries) entry.id]) ||
-        !_validIds([for (final entry in snapshot.changeLog) entry.id]) ||
+        !_validIds([for (final entry in changeLog) entry.id]) ||
         months.any((month) => !_incomeAccepted(month.income))) {
       return const BackupRejected(BackupProblem.invalidStructure);
+    }
+    final validCards = _validCards(cards);
+    if (validCards == null || _pointsToMissingCard(entries, validCards)) {
+      return const BackupRejected(BackupProblem.invalidCards);
     }
     if (MonthTimeline.errors(months).isNotEmpty) {
       return const BackupRejected(BackupProblem.invalidTimeline);
@@ -115,13 +164,53 @@ abstract final class BackupCodec {
       return const BackupRejected(BackupProblem.invalidExpenses);
     }
     final monthIds = {for (final month in months) month.id};
-    final orphanChange = snapshot.changeLog.any(
+    final orphanChange = changeLog.any(
       (entry) => entry.monthId != null && !monthIds.contains(entry.monthId),
     );
     if (orphanChange) {
       return const BackupRejected(BackupProblem.invalidChangeLog);
     }
-    return BackupAccepted(snapshot);
+    return BackupAccepted(
+      BackupSnapshot(cards: validCards, months: months, changeLog: changeLog),
+    );
+  }
+
+  static List<PaymentCard>? _validCards(List<_CardDraft> drafts) {
+    final cards = <PaymentCard>[];
+    for (final draft in drafts) {
+      final color = draft.color;
+      final errors = CardRules.errors(
+        name: draft.name,
+        color: color,
+        cards: draft.archivedAt == null ? cards : const [],
+      );
+      if (errors.isNotEmpty || color == null || !Names.isClean(draft.name)) {
+        return null;
+      }
+      cards.add(
+        PaymentCard(
+          id: draft.id,
+          name: draft.name,
+          color: color,
+          createdAt: draft.createdAt,
+          archivedAt: draft.archivedAt,
+        ),
+      );
+    }
+    return cards;
+  }
+
+  static bool _pointsToMissingCard(
+    List<ExpenseEntry> entries,
+    List<PaymentCard> cards,
+  ) {
+    final cardIds = {for (final card in cards) card.id};
+    return entries.any(
+      (entry) => switch (entry.expense) {
+        InstallmentExpense(:final cardId?) => !cardIds.contains(cardId),
+        _ => false,
+      },
+    );
   }
 
   static bool _validIds(List<int> ids) =>
@@ -159,7 +248,18 @@ abstract final class BackupCodec {
     'after': entry.after,
   };
 
-  static Month _decodeMonth(Object? item) {
+  static _CardDraft _decodeCard(Object? item) {
+    final fields = _Fields(item);
+    return (
+      id: fields.required(CardJson.id),
+      name: fields.required(CardJson.name),
+      color: CardColor.tryParse(fields.required(CardJson.color)),
+      createdAt: _moment(fields.required(CardJson.createdAt)),
+      archivedAt: _optionalMoment(fields.optional(CardJson.archivedAt)),
+    );
+  }
+
+  static Month _decodeMonth(Object? item, _CardIdReader cardIdOf) {
     final fields = _Fields(item);
     final status = _enumByName(MonthStatus.values, fields.required('status'));
     final incomeCents = fields.optional<int>('incomeCents');
@@ -169,27 +269,25 @@ abstract final class BackupCodec {
       status: status,
       income: incomeCents == null ? null : Money(incomeCents),
       openedAt: _moment(fields.required('openedAt')),
-      closedAt: switch (fields.optional<String>('closedAt')) {
-        final text? => _moment(text),
-        null => null,
-      },
+      closedAt: _optionalMoment(fields.optional('closedAt')),
       entries: [
-        for (final expense in fields.list('expenses')) _decodeEntry(expense),
+        for (final expense in fields.list('expenses'))
+          _decodeEntry(expense, cardIdOf),
       ],
     );
   }
 
-  static ExpenseEntry _decodeEntry(Object? item) {
+  static ExpenseEntry _decodeEntry(Object? item, _CardIdReader cardIdOf) {
     final fields = _Fields(item);
     return ExpenseEntry(
       id: fields.required('id'),
-      expense: _decodeExpense(fields),
+      expense: _decodeExpense(fields, cardIdOf(fields)),
       createdAt: _moment(fields.required('createdAt')),
       updatedAt: _moment(fields.required('updatedAt')),
     );
   }
 
-  static Expense _decodeExpense(_Fields fields) {
+  static Expense _decodeExpense(_Fields fields, int? cardId) {
     final name = fields.required<String>(ExpenseJson.name);
     final amount = Money(fields.required(ExpenseJson.amountCents));
     final current = fields.optional<int>(ExpenseJson.currentInstallment);
@@ -200,8 +298,9 @@ abstract final class BackupCodec {
       fields.required(ExpenseJson.category),
     );
     final hasCounters = current != null || total != null;
+    final hasInstallmentFields = hasCounters || cardId != null;
     switch (category) {
-      case ExpenseCategory.fixed when !hasCounters && spentOn == null:
+      case ExpenseCategory.fixed when !hasInstallmentFields && spentOn == null:
         return FixedExpense(name: name, amount: amount);
       case ExpenseCategory.installment
           when current != null && total != null && spentOn == null:
@@ -210,8 +309,9 @@ abstract final class BackupCodec {
           amount: amount,
           current: current,
           total: total,
+          cardId: cardId,
         );
-      case ExpenseCategory.variable when !hasCounters:
+      case ExpenseCategory.variable when !hasInstallmentFields:
         return VariableExpense(
           name: name,
           amount: amount,
@@ -240,6 +340,9 @@ abstract final class BackupCodec {
       (throw FormatException('Unknown value', name));
 
   static DateTime _moment(String text) => DateTime.parse(text).toUtc();
+
+  static DateTime? _optionalMoment(String? text) =>
+      text == null ? null : _moment(text);
 }
 
 final class _Fields {

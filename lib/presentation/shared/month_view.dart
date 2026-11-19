@@ -5,8 +5,11 @@ import 'package:offmoney/domain/expense_ordering.dart';
 import 'package:offmoney/domain/money.dart';
 import 'package:offmoney/domain/month.dart';
 import 'package:offmoney/domain/month_summary.dart';
+import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/presentation/l10n/generated/app_localizations.dart';
 import 'package:offmoney/presentation/shared/action_row.dart';
+import 'package:offmoney/presentation/shared/card_tag.dart';
+import 'package:offmoney/presentation/shared/expense_card.dart';
 import 'package:offmoney/presentation/shared/formatters.dart';
 import 'package:offmoney/presentation/shared/grouped_section.dart';
 import 'package:offmoney/presentation/shared/labels.dart';
@@ -16,6 +19,7 @@ import 'package:offmoney/presentation/theme/metrics.dart';
 class MonthView extends StatelessWidget {
   const MonthView({
     required this.month,
+    required this.cards,
     this.onEditIncome,
     this.onAdd,
     this.onEdit,
@@ -24,6 +28,7 @@ class MonthView extends StatelessWidget {
   });
 
   final Month month;
+  final Map<int, PaymentCard> cards;
   final VoidCallback? onEditIncome;
   final ValueChanged<ExpenseCategory>? onAdd;
   final ValueChanged<ExpenseEntry>? onEdit;
@@ -82,6 +87,7 @@ class MonthView extends StatelessWidget {
         if (entry.expense.category == category)
           ExpenseTile(
             expense: entry.expense,
+            card: cardOf(entry.expense, cards),
             onTap: onEdit == null ? null : () => onEdit(entry),
           ),
     ];
@@ -89,9 +95,17 @@ class MonthView extends StatelessWidget {
 }
 
 class ExpenseTile extends StatelessWidget {
-  const ExpenseTile({required this.expense, this.onTap, super.key});
+  const ExpenseTile({
+    required this.expense,
+    this.card,
+    this.onTap,
+    super.key,
+  });
+
+  static const _tagGap = 6.0;
 
   final Expense expense;
+  final PaymentCard? card;
   final VoidCallback? onTap;
 
   @override
@@ -111,9 +125,21 @@ class ExpenseTile extends StatelessWidget {
     };
     return ListTile(
       title: Text(expense.name),
-      subtitle: details == null ? null : Text(details),
+      subtitle: details == null ? null : _subtitle(details),
       trailing: Text(formatMoney(expense.amount)),
       onTap: onTap,
+    );
+  }
+
+  Widget _subtitle(String details) {
+    final card = this.card;
+    if (card == null) return Text(details);
+    return Row(
+      children: [
+        Text(details),
+        const SizedBox(width: _tagGap),
+        Flexible(child: CardTag.of(card)),
+      ],
     );
   }
 }

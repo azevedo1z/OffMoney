@@ -76,6 +76,7 @@ String _reason(BackupProblem problem, AppLocalizations l10n) =>
       BackupProblem.notOffMoneyBackup => l10n.importReasonFormat,
       BackupProblem.unknownVersion => l10n.importReasonVersion,
       BackupProblem.invalidStructure => l10n.importReasonStructure,
+      BackupProblem.invalidCards => l10n.importReasonCards,
       BackupProblem.invalidTimeline => l10n.importReasonTimeline,
       BackupProblem.invalidExpenses => l10n.importReasonExpenses,
       BackupProblem.invalidChangeLog => l10n.importReasonChangeLog,
