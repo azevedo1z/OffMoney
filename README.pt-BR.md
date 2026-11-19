@@ -57,9 +57,10 @@ O OffMoney é um orçamento mensal que fica fora da rede. Não tem conta, nem co
 - **Linha de auditoria.** O saldo aparece sempre como `(Entrada) - (Fixos + Parcelados + Variáveis) = Saldo`, com os valores, fixo no rodapé da tela.
 - **Fechamento com prévia.** Antes de fechar, o app mostra cada efeito: gastos variáveis zerados, parcelas que avançam ou terminam, gastos fixos mantidos, o saldo final e a entrada do mês seguinte.
 - **Digitação cuidadosa.** Campo de moeda preenchido da direita, com estado vazio diferente de R$ 0,00; confirmação quando um gasto passa do saldo restante, quando parece duplicado e antes de excluir.
+- **Cartões nos parcelados.** Cadastre cartões com nome e cor em "Gerenciar cartões" e escolha um em cada parcelado; ele aparece como etiqueta na linha e no texto compartilhado. Um cartão excluído continua nos parcelados que já o usam.
 - **Histórico.** Meses fechados ficam somente leitura, com a própria linha de auditoria.
 - **Compartilhar.** Um resumo em texto de qualquer mês pela folha de compartilhamento do Android.
-- **Backup.** Exportação em JSON versionado com todos os meses, gastos e alterações, e importação que valida o arquivo inteiro antes de substituir qualquer coisa.
+- **Backup.** Exportação em JSON versionado com todos os meses, gastos, cartões e alterações, e importação que valida o arquivo inteiro antes de substituir qualquer coisa.
 - **Histórico de alterações.** Toda escrita registra os valores antigo e novo na mesma transação.
 - **Tema.** Claro, escuro ou seguindo o sistema, escolhido pelo menu.
 
@@ -142,7 +143,7 @@ As notas podem ser editadas depois na página da release.
 
 - Os dados ficam num banco SQLite local (Drift). CHECKs, chaves estrangeiras e um único mês aberto repetem as regras do domínio como segunda linha de defesa.
 - O backup automático e a transferência entre aparelhos do Android estão desligados, então a exportação em JSON é o único backup. O arquivo exportado não é criptografado: guarde-o em local seguro.
-- A importação valida o arquivo inteiro (formato, versão, valores inteiros, meses em ordem, cada gasto) e substitui todos os dados numa única transação. Um arquivo inválido não altera nada.
+- A importação valida o arquivo inteiro (formato, versão, valores inteiros, meses em ordem, cada gasto e cartão) e substitui todos os dados numa única transação. Um arquivo inválido não altera nada.
 - O esquema é versionado em `drift_schemas/`. Ao mudar tabelas, aumente `schemaVersion`, escreva a migração e rode `dart run drift_dev make-migrations`.
 
 ## Arquitetura
@@ -150,8 +151,8 @@ As notas podem ser editadas depois na página da release.
 ```text
 lib/
 ├── domain/        Regras em Dart puro: dinheiro, meses, gastos, validações, avisos e o plano de fechamento
-├── application/   Casos de uso, a porta do repositório, o relógio e o codec do backup
-├── data/          Banco Drift e a implementação do repositório
+├── application/   Casos de uso, as portas dos repositórios, o relógio e o codec do backup
+├── data/          Banco Drift e as implementações dos repositórios
 └── presentation/  Providers do Riverpod, telas, widgets compartilhados, tema e textos em pt-BR
 ```
 
