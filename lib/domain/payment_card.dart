@@ -1,5 +1,12 @@
 import 'package:meta/meta.dart';
 import 'package:offmoney/domain/card_color.dart';
+import 'package:offmoney/domain/expense.dart';
+
+PaymentCard? cardOf(Expense expense, Map<int, PaymentCard> cards) =>
+    switch (expense) {
+      InstallmentExpense(:final cardId?) => cards[cardId],
+      _ => null,
+    };
 
 @immutable
 final class PaymentCard {

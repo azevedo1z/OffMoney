@@ -1,4 +1,5 @@
 import 'package:offmoney/domain/expense.dart';
+import 'package:offmoney/domain/expense_order.dart';
 import 'package:offmoney/domain/expense_rules.dart';
 import 'package:offmoney/presentation/l10n/generated/app_localizations.dart';
 
@@ -22,6 +23,21 @@ String editExpenseTitle(ExpenseCategory category, AppLocalizations l10n) =>
       ExpenseCategory.installment => l10n.editInstallment,
       ExpenseCategory.variable => l10n.editVariable,
     };
+
+String orderLabel(ExpenseOrder order, AppLocalizations l10n) => switch (order) {
+  ExpenseOrder.fixedByName => l10n.orderDefaultByName,
+  ExpenseOrder.installmentFewestRemaining => l10n.orderDefaultFewestRemaining,
+  ExpenseOrder.variableOldestFirst => l10n.orderDefaultOldestFirst,
+  ExpenseOrder.fixedHighestAmount ||
+  ExpenseOrder.variableHighestAmount => l10n.orderHighestAmount,
+  ExpenseOrder.fixedLowestAmount ||
+  ExpenseOrder.variableLowestAmount => l10n.orderLowestAmount,
+  ExpenseOrder.installmentMostRemaining => l10n.orderMostRemaining,
+  ExpenseOrder.installmentByName ||
+  ExpenseOrder.variableByName => l10n.orderByName,
+  ExpenseOrder.installmentByCard => l10n.orderByCard,
+  ExpenseOrder.variableNewestFirst => l10n.orderNewestFirst,
+};
 
 String installmentCounter(InstallmentExpense installment) =>
     '${installment.current}/${installment.total}';

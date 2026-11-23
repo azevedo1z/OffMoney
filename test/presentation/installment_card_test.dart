@@ -386,6 +386,8 @@ void main() {
                 ]),
               ),
               cards: {1: card('Roxo')},
+              orders: const {},
+              onOrder: (_) {},
             ),
           ),
         ),

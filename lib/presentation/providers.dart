@@ -8,6 +8,7 @@ import 'package:offmoney/application/month_actions.dart';
 import 'package:offmoney/application/month_repository.dart';
 import 'package:offmoney/domain/calendar_date.dart';
 import 'package:offmoney/domain/expense.dart';
+import 'package:offmoney/domain/expense_order.dart';
 import 'package:offmoney/domain/month.dart';
 import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/presentation/backup/backup_files.dart';
@@ -134,6 +135,21 @@ final Provider<ImportBackup> importBackupProvider = Provider(
 final Provider<ThemeModeStore> themeModeStoreProvider = Provider(
   (ref) => throw UnimplementedError('Provide the theme store at startup'),
 );
+
+final NotifierProvider<
+  ExpenseOrdersNotifier,
+  Map<ExpenseCategory, ExpenseOrder>
+>
+expenseOrdersProvider = NotifierProvider(ExpenseOrdersNotifier.new);
+
+final class ExpenseOrdersNotifier
+    extends Notifier<Map<ExpenseCategory, ExpenseOrder>> {
+  @override
+  Map<ExpenseCategory, ExpenseOrder> build() => const {};
+
+  void choose(ExpenseOrder order) =>
+      state = Map.unmodifiable({...state, order.category: order});
+}
 
 final NotifierProvider<ThemeModeNotifier, ThemeMode> themeModeProvider =
     NotifierProvider(ThemeModeNotifier.new);

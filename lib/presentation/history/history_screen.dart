@@ -107,7 +107,13 @@ class ClosedMonthScreen extends ConsumerWidget {
               ),
             ],
           ),
-          body: MonthView(month: month, cards: cards),
+          body: MonthView(
+            month: month,
+            cards: cards,
+            orders: ref.watch(expenseOrdersProvider),
+            onOrder: (order) =>
+                ref.read(expenseOrdersProvider.notifier).choose(order),
+          ),
           bottomNavigationBar: AuditBar(summary: month.summary),
         ),
       (AsyncError(), _) || (_, AsyncError()) => Scaffold(
