@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:offmoney/domain/expense.dart';
 import 'package:offmoney/domain/expense_entry.dart';
+import 'package:offmoney/domain/expense_order.dart';
 import 'package:offmoney/domain/expense_ordering.dart';
 import 'package:offmoney/domain/money.dart';
 import 'package:offmoney/domain/month.dart';
@@ -9,7 +10,6 @@ import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/presentation/l10n/generated/app_localizations.dart';
 import 'package:offmoney/presentation/shared/action_row.dart';
 import 'package:offmoney/presentation/shared/card_tag.dart';
-import 'package:offmoney/presentation/shared/expense_card.dart';
 import 'package:offmoney/presentation/shared/formatters.dart';
 import 'package:offmoney/presentation/shared/grouped_section.dart';
 import 'package:offmoney/presentation/shared/labels.dart';
@@ -20,6 +20,8 @@ class MonthView extends StatelessWidget {
   const MonthView({
     required this.month,
     required this.cards,
+    required this.orders,
+    required this.onOrder,
     this.onEditIncome,
     this.onAdd,
     this.onEdit,
@@ -27,8 +29,12 @@ class MonthView extends StatelessWidget {
     super.key,
   });
 
+  static const _minimumSortableRows = 2;
+
   final Month month;
   final Map<int, PaymentCard> cards;
+  final Map<ExpenseCategory, ExpenseOrder> orders;
+  final ValueChanged<ExpenseOrder> onOrder;
   final VoidCallback? onEditIncome;
   final ValueChanged<ExpenseCategory>? onAdd;
   final ValueChanged<ExpenseEntry>? onEdit;
@@ -39,8 +45,11 @@ class MonthView extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final summary = month.summary;
-    final sorted = ExpenseOrdering.sorted(month.entries);
-    final onAdd = this.onAdd;
+    final sorted = ExpenseOrdering.sortedBy(
+      month.entries,
+      orders: orders,
+      cards: cards,
+    );
     final onClose = this.onClose;
     final totalStyle = theme.textTheme.titleMedium;
     return ListView(
@@ -53,14 +62,7 @@ class MonthView extends StatelessWidget {
           children: [_IncomeTile(income: month.income, onTap: onEditIncome)],
         ),
         for (final category in ExpenseCategory.values)
-          GroupedSection(
-            header: _SectionHeader(
-              title: categoryTitle(category, l10n),
-              subtotal: summary.totalOf(category),
-              onAdd: onAdd == null ? null : () => onAdd(category),
-            ),
-            children: _rowsOf(sorted, category),
-          ),
+          _sectionOf(category, sorted, summary, l10n),
         GroupedSection(
           children: [
             ListTile(
@@ -77,6 +79,26 @@ class MonthView extends StatelessWidget {
             children: [ActionRow(label: l10n.closeMonth, onTap: onClose)],
           ),
       ],
+    );
+  }
+
+  Widget _sectionOf(
+    ExpenseCategory category,
+    List<ExpenseEntry> sorted,
+    MonthSummary summary,
+    AppLocalizations l10n,
+  ) {
+    final onAdd = this.onAdd;
+    final rows = _rowsOf(sorted, category);
+    return GroupedSection(
+      header: _SectionHeader(
+        title: categoryTitle(category, l10n),
+        subtotal: summary.totalOf(category),
+        order: ExpenseOrder.chosenIn(orders, category),
+        onAdd: onAdd == null ? null : () => onAdd(category),
+        onOrder: rows.length < _minimumSortableRows ? null : onOrder,
+      ),
+      children: rows,
     );
   }
 
@@ -249,18 +271,23 @@ class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,
     required this.subtotal,
+    required this.order,
     required this.onAdd,
+    required this.onOrder,
   });
 
   final String title;
   final Money subtotal;
+  final ExpenseOrder order;
   final VoidCallback? onAdd;
+  final ValueChanged<ExpenseOrder>? onOrder;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     final onAdd = this.onAdd;
+    final onOrder = this.onOrder;
     return Row(
       children: [
         Expanded(
@@ -274,6 +301,28 @@ class _SectionHeader extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                   color: scheme.primary,
                   icon: const Icon(Icons.add_circle_outline_rounded),
+                ),
+              if (onOrder != null)
+                PopupMenuButton<ExpenseOrder>(
+                  key: Key('sort-${order.category.name}'),
+                  tooltip: l10n.sortSection(title),
+                  initialValue: order,
+                  onSelected: onOrder,
+                  style: IconButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  iconColor: order.isDefault
+                      ? scheme.onSurfaceVariant
+                      : scheme.primary,
+                  icon: const Icon(Icons.swap_vert_rounded),
+                  itemBuilder: (context) => [
+                    for (final option in ExpenseOrder.of(order.category))
+                      CheckedPopupMenuItem(
+                        value: option,
+                        checked: option == order,
+                        child: Text(orderLabel(option, l10n)),
+                      ),
+                  ],
                 ),
             ],
           ),

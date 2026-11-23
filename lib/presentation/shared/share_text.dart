@@ -3,7 +3,6 @@ import 'package:offmoney/domain/expense_ordering.dart';
 import 'package:offmoney/domain/month.dart';
 import 'package:offmoney/domain/payment_card.dart';
 import 'package:offmoney/presentation/l10n/generated/app_localizations.dart';
-import 'package:offmoney/presentation/shared/expense_card.dart';
 import 'package:offmoney/presentation/shared/formatters.dart';
 import 'package:offmoney/presentation/shared/labels.dart';
 

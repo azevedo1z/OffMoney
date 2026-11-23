@@ -117,6 +117,9 @@ class _OpenMonthPage extends ConsumerWidget {
       body: MonthView(
         month: month,
         cards: cards,
+        orders: ref.watch(expenseOrdersProvider),
+        onOrder: (order) =>
+            ref.read(expenseOrdersProvider.notifier).choose(order),
         onEditIncome: () => editIncome(context, current: month.income),
         onAdd: (category) => openExpenseForm(context, category),
         onEdit: (entry) =>
