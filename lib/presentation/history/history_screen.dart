@@ -6,7 +6,7 @@ import 'package:offmoney/presentation/l10n/generated/app_localizations.dart';
 import 'package:offmoney/presentation/providers.dart';
 import 'package:offmoney/presentation/shared/formatters.dart';
 import 'package:offmoney/presentation/shared/grouped_section.dart';
-import 'package:offmoney/presentation/shared/month_view.dart';
+import 'package:offmoney/presentation/shared/month_scaffold.dart';
 import 'package:offmoney/presentation/shared/share_text.dart';
 import 'package:offmoney/presentation/theme/metrics.dart';
 import 'package:share_plus/share_plus.dart';
@@ -95,26 +95,21 @@ class ClosedMonthScreen extends ConsumerWidget {
     final month = ref.watch(monthProvider(monthId));
     return switch ((month, ref.watch(cardsByIdProvider))) {
       (AsyncData(value: final month), AsyncData(value: final cards)) =>
-        Scaffold(
-          appBar: AppBar(
-            actions: [
-              IconButton(
-                tooltip: l10n.share,
-                onPressed: () => SharePlus.instance.share(
-                  ShareParams(text: shareText(month, cards, l10n)),
-                ),
-                icon: const Icon(Icons.ios_share_rounded),
+        MonthScaffold(
+          month: month,
+          cards: cards,
+          orders: ref.watch(expenseOrdersProvider),
+          onOrder: (order) =>
+              ref.read(expenseOrdersProvider.notifier).choose(order),
+          actions: [
+            IconButton(
+              tooltip: l10n.share,
+              onPressed: () => SharePlus.instance.share(
+                ShareParams(text: shareText(month, cards, l10n)),
               ),
-            ],
-          ),
-          body: MonthView(
-            month: month,
-            cards: cards,
-            orders: ref.watch(expenseOrdersProvider),
-            onOrder: (order) =>
-                ref.read(expenseOrdersProvider.notifier).choose(order),
-          ),
-          bottomNavigationBar: AuditBar(summary: month.summary),
+              icon: const Icon(Icons.ios_share_rounded),
+            ),
+          ],
         ),
       (AsyncError(), _) || (_, AsyncError()) => Scaffold(
         appBar: AppBar(),

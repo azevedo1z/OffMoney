@@ -3,6 +3,7 @@ import 'package:offmoney/domain/expense.dart';
 import 'package:offmoney/domain/expense_entry.dart';
 import 'package:offmoney/domain/expense_order.dart';
 import 'package:offmoney/domain/expense_ordering.dart';
+import 'package:offmoney/domain/expense_query.dart';
 import 'package:offmoney/domain/money.dart';
 import 'package:offmoney/domain/month.dart';
 import 'package:offmoney/domain/month_summary.dart';
@@ -26,6 +27,7 @@ class MonthView extends StatelessWidget {
     this.onAdd,
     this.onEdit,
     this.onClose,
+    this.query = ExpenseQuery.none,
     super.key,
   });
 
@@ -39,17 +41,25 @@ class MonthView extends StatelessWidget {
   final ValueChanged<ExpenseCategory>? onAdd;
   final ValueChanged<ExpenseEntry>? onEdit;
   final VoidCallback? onClose;
+  final ExpenseQuery query;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final summary = month.summary;
+    final filtering = query.isActive;
     final sorted = ExpenseOrdering.sortedBy(
-      month.entries,
+      filtering ? query.filter(month.entries, cards) : month.entries,
       orders: orders,
       cards: cards,
     );
+    final matched = filtering
+        ? MonthSummary.of(
+            income: null,
+            expenses: [for (final entry in sorted) entry.expense],
+          )
+        : null;
     final onClose = this.onClose;
     final totalStyle = theme.textTheme.titleMedium;
     return ListView(
@@ -58,22 +68,35 @@ class MonthView extends StatelessWidget {
       ),
       children: [
         LargeTitle(text: formatReference(month.reference, l10n)),
-        GroupedSection(
-          children: [_IncomeTile(income: month.income, onTap: onEditIncome)],
-        ),
+        if (matched == null)
+          GroupedSection(
+            children: [_IncomeTile(income: month.income, onTap: onEditIncome)],
+          )
+        else
+          _MatchLine(
+            text: sorted.isEmpty
+                ? l10n.noMatches
+                : l10n.countAndTotal(
+                    l10n.resultCount(sorted.length),
+                    formatMoney(matched.totalExpenses),
+                  ),
+          ),
         for (final category in ExpenseCategory.values)
-          _sectionOf(category, sorted, summary, l10n),
-        GroupedSection(
-          children: [
-            ListTile(
-              title: Text(l10n.totalExpenses, style: totalStyle),
-              trailing: Text(
-                formatMoney(summary.totalExpenses),
-                style: totalStyle,
+          if (_rowsOf(sorted, category) case final rows
+              when !filtering || rows.isNotEmpty)
+            _sectionOf(category, rows, summary, matched, l10n),
+        if (!filtering)
+          GroupedSection(
+            children: [
+              ListTile(
+                title: Text(l10n.totalExpenses, style: totalStyle),
+                trailing: Text(
+                  formatMoney(summary.totalExpenses),
+                  style: totalStyle,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         if (onClose != null)
           GroupedSection(
             children: [ActionRow(label: l10n.closeMonth, onTap: onClose)],
@@ -84,16 +107,17 @@ class MonthView extends StatelessWidget {
 
   Widget _sectionOf(
     ExpenseCategory category,
-    List<ExpenseEntry> sorted,
+    List<Widget> rows,
     MonthSummary summary,
+    MonthSummary? matched,
     AppLocalizations l10n,
   ) {
     final onAdd = this.onAdd;
-    final rows = _rowsOf(sorted, category);
     return GroupedSection(
       header: _SectionHeader(
         title: categoryTitle(category, l10n),
         subtotal: summary.totalOf(category),
+        matched: matched?.totalOf(category),
         order: ExpenseOrder.chosenIn(orders, category),
         onAdd: onAdd == null ? null : () => onAdd(category),
         onOrder: rows.length < _minimumSortableRows ? null : onOrder,
@@ -267,10 +291,36 @@ class _IncomeTile extends StatelessWidget {
   }
 }
 
+class _MatchLine extends StatelessWidget {
+  const _MatchLine({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        Metrics.inset * 2,
+        0,
+        Metrics.inset * 2,
+        Metrics.sectionGap,
+      ),
+      child: Text(
+        text,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,
     required this.subtotal,
+    required this.matched,
     required this.order,
     required this.onAdd,
     required this.onOrder,
@@ -278,6 +328,7 @@ class _SectionHeader extends StatelessWidget {
 
   final String title;
   final Money subtotal;
+  final Money? matched;
   final ExpenseOrder order;
   final VoidCallback? onAdd;
   final ValueChanged<ExpenseOrder>? onOrder;
@@ -288,6 +339,7 @@ class _SectionHeader extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final onAdd = this.onAdd;
     final onOrder = this.onOrder;
+    final matched = this.matched;
     return Row(
       children: [
         Expanded(
@@ -328,7 +380,9 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
         Text(
-          formatMoney(subtotal),
+          matched == null
+              ? formatMoney(subtotal)
+              : l10n.partOfTotal(formatMoney(matched), formatMoney(subtotal)),
           style: TextStyle(
             fontWeight: FontWeight.w400,
             color: scheme.onSurfaceVariant,
