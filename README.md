@@ -61,6 +61,7 @@ The app interface is in Brazilian Portuguese.
 - **Careful input.** A currency field filled from the right, with an empty state distinct from R$ 0,00; confirmation when an expense exceeds the remaining balance, when it looks like a duplicate, and before deleting.
 - **Cards on installments.** Register cards with a name and a color in "Gerenciar cartões" and pick one on each installment; it shows as a tag on the row and in the shared text. A deleted card stays on the installments that already use it.
 - **Sorting.** The arrow next to the "+" of a category sorts its list by amount, name, date, installments left or card, depending on the category; the choice lasts until the app is closed and applies to the history too.
+- **Search.** The magnifier on a month filters its expenses as you type, by name or card name, ignoring case and accents, with the count and sum of the matches.
 - **History.** Closed months are read-only, with their own audit line.
 - **Share.** A plain-text summary of any month, through the Android share sheet.
 - **Backup.** A versioned JSON export of every month, expense, card and change, and an import that validates the whole file before replacing anything.

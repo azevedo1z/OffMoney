@@ -13,7 +13,7 @@ import 'package:offmoney/presentation/month/add_expense_button.dart';
 import 'package:offmoney/presentation/month/income_dialog.dart';
 import 'package:offmoney/presentation/providers.dart';
 import 'package:offmoney/presentation/shared/failure.dart';
-import 'package:offmoney/presentation/shared/month_view.dart';
+import 'package:offmoney/presentation/shared/month_scaffold.dart';
 import 'package:offmoney/presentation/shared/reference_picker.dart';
 import 'package:offmoney/presentation/shared/share_text.dart';
 import 'package:offmoney/presentation/theme/theme_picker.dart';
@@ -52,86 +52,82 @@ class _OpenMonthPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        actions: [
-          IconButton(
-            tooltip: l10n.history,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const HistoryScreen()),
-            ),
-            icon: const Icon(Icons.history_rounded),
-          ),
-          IconButton(
-            tooltip: l10n.share,
-            onPressed: () => SharePlus.instance.share(
-              ShareParams(text: shareText(month, cards, l10n)),
-            ),
-            icon: const Icon(Icons.ios_share_rounded),
-          ),
-          PopupMenuButton<_MenuAction>(
-            icon: const Icon(Icons.more_horiz_rounded),
-            onSelected: (action) => switch (action) {
-              _MenuAction.changeReference => _changeReference(context, ref),
-              _MenuAction.manageCards => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const CardsScreen()),
-              ),
-              _MenuAction.exportBackup => exportBackup(context, ref),
-              _MenuAction.importBackup => importBackup(context, ref),
-              _MenuAction.theme => _pickTheme(context, ref),
-              _MenuAction.about => showAboutDialog(
-                context: context,
-                applicationName: l10n.appTitle,
-                applicationLegalese: l10n.aboutDisclaimer,
-              ),
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: _MenuAction.changeReference,
-                child: Text(l10n.changeReference),
-              ),
-              PopupMenuItem(
-                value: _MenuAction.manageCards,
-                child: Text(l10n.manageCards),
-              ),
-              PopupMenuItem(
-                value: _MenuAction.exportBackup,
-                child: Text(l10n.exportBackup),
-              ),
-              PopupMenuItem(
-                value: _MenuAction.importBackup,
-                child: Text(l10n.importBackup),
-              ),
-              PopupMenuItem(
-                value: _MenuAction.theme,
-                child: Text(l10n.theme),
-              ),
-              PopupMenuItem(
-                value: _MenuAction.about,
-                child: Text(l10n.about),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: MonthView(
-        month: month,
-        cards: cards,
-        orders: ref.watch(expenseOrdersProvider),
-        onOrder: (order) =>
-            ref.read(expenseOrdersProvider.notifier).choose(order),
-        onEditIncome: () => editIncome(context, current: month.income),
-        onAdd: (category) => openExpenseForm(context, category),
-        onEdit: (entry) =>
-            openExpenseForm(context, entry.expense.category, entry: entry),
-        onClose: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const CloseMonthScreen()),
-        ),
+    return MonthScaffold(
+      key: ValueKey(month.id),
+      month: month,
+      cards: cards,
+      orders: ref.watch(expenseOrdersProvider),
+      onOrder: (order) =>
+          ref.read(expenseOrdersProvider.notifier).choose(order),
+      onEditIncome: () => editIncome(context, current: month.income),
+      onAdd: (category) => openExpenseForm(context, category),
+      onEdit: (entry) =>
+          openExpenseForm(context, entry.expense.category, entry: entry),
+      onClose: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const CloseMonthScreen()),
       ),
       floatingActionButton: AddExpenseButton(
         onPick: (category) => openExpenseForm(context, category),
       ),
-      bottomNavigationBar: AuditBar(summary: month.summary),
+      actions: [
+        IconButton(
+          tooltip: l10n.history,
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const HistoryScreen()),
+          ),
+          icon: const Icon(Icons.history_rounded),
+        ),
+        IconButton(
+          tooltip: l10n.share,
+          onPressed: () => SharePlus.instance.share(
+            ShareParams(text: shareText(month, cards, l10n)),
+          ),
+          icon: const Icon(Icons.ios_share_rounded),
+        ),
+        PopupMenuButton<_MenuAction>(
+          icon: const Icon(Icons.more_horiz_rounded),
+          onSelected: (action) => switch (action) {
+            _MenuAction.changeReference => _changeReference(context, ref),
+            _MenuAction.manageCards => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const CardsScreen()),
+            ),
+            _MenuAction.exportBackup => exportBackup(context, ref),
+            _MenuAction.importBackup => importBackup(context, ref),
+            _MenuAction.theme => _pickTheme(context, ref),
+            _MenuAction.about => showAboutDialog(
+              context: context,
+              applicationName: l10n.appTitle,
+              applicationLegalese: l10n.aboutDisclaimer,
+            ),
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: _MenuAction.changeReference,
+              child: Text(l10n.changeReference),
+            ),
+            PopupMenuItem(
+              value: _MenuAction.manageCards,
+              child: Text(l10n.manageCards),
+            ),
+            PopupMenuItem(
+              value: _MenuAction.exportBackup,
+              child: Text(l10n.exportBackup),
+            ),
+            PopupMenuItem(
+              value: _MenuAction.importBackup,
+              child: Text(l10n.importBackup),
+            ),
+            PopupMenuItem(
+              value: _MenuAction.theme,
+              child: Text(l10n.theme),
+            ),
+            PopupMenuItem(
+              value: _MenuAction.about,
+              child: Text(l10n.about),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
