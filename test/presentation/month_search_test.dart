@@ -288,29 +288,20 @@ void main() {
       expect(find.text(r'1 resultado · R$ 900,00'), findsOneWidget);
     }, seed: seedSearchMonth);
 
-    testApp('finds an installment by a word of its card name', (app) async {
-      await search(app, 'roxo GELADEIRA');
+    testApp('finds an installment by its own name', (app) async {
+      await search(app, 'GELADEIRA');
 
       expect(find.text(r'1 resultado · R$ 300,00'), findsOneWidget);
       expect(find.text('Geladeira'), findsOneWidget);
       expect(find.text(r'R$ 300,00 de R$ 420,00'), findsOneWidget);
     }, seed: seedSearchMonth);
 
-    testApp(
-      'finds an installment by the name of an archived card',
-      (
-        app,
-      ) async {
-        await app.wait(app.memory.cards.archiveCard(2));
-        await app.settle();
+    testApp('never finds an installment by its card name', (app) async {
+      await search(app, 'roxo');
 
-        await search(app, 'laranja');
-
-        expect(find.text('Óculos'), findsOneWidget);
-        expect(find.text(r'1 resultado · R$ 120,00'), findsOneWidget);
-      },
-      seed: seedSearchMonth,
-    );
+      expect(find.text(noMatches), findsOneWidget);
+      expect(find.text('Geladeira'), findsNothing);
+    }, seed: seedSearchMonth);
 
     testApp('says so when nothing matches and shows no category', (
       app,

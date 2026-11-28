@@ -7,13 +7,8 @@ import '../support/builders.dart';
 
 void main() {
   group('ExpenseQuery', () {
-    final cards = {
-      1: card('Roxo'),
-      2: card('Antigo', id: 2, archived: true),
-    };
-
     bool matches(String text, Expense expense) =>
-        ExpenseQuery(text).matches(expense, cards);
+        ExpenseQuery(text).matches(expense);
 
     test('is inactive for a blank or spaces-only text', () {
       expect(ExpenseQuery('').isActive, isFalse);
@@ -40,37 +35,11 @@ void main() {
       expect(matches('farmacia padaria', pharmacy), isFalse);
     });
 
-    test('finds one word in the name and the other in the card name', () {
-      final fridge = installment('Geladeira', '300,00', 2, 10, cardId: 1);
-
-      expect(matches('geladeira roxo', fridge), isTrue);
-      expect(matches('roxo', fridge), isTrue);
-    });
-
-    test('never matches a word across the name and the card name', () {
-      final fridge = installment('Geladeira', '300,00', 2, 10, cardId: 1);
-
-      expect(matches('rar', fridge), isFalse);
-    });
-
-    test('finds an installment by the name of its archived card', () {
-      final sofa = installment('Sofá', '200,00', 1, 5, cardId: 2);
-
-      expect(matches('antigo', sofa), isTrue);
-    });
-
-    test('uses only the name for an installment without a known card', () {
-      final noCard = installment('Monitor', '60,00', 7, 9);
-      final missingCard = installment('Monitor', '60,00', 7, 9, cardId: 9);
-
-      expect(matches('monitor', noCard), isTrue);
-      expect(matches('roxo', noCard), isFalse);
-      expect(matches('roxo', missingCard), isFalse);
-    });
-
-    test('never matches a fixed or variable expense by a card name', () {
-      expect(matches('roxo', fixed('Aluguel', '1.100,00')), isFalse);
-      expect(matches('roxo', variable('Pão', '7,00')), isFalse);
+    test('finds an installment by its own name', () {
+      expect(
+        matches('geladeira', installment('Geladeira', '300,00', 2, 10)),
+        isTrue,
+      );
     });
 
     test('filter keeps the matches in their input order', () {
@@ -80,7 +49,7 @@ void main() {
         entry(2, installment('Mesa', '80,00', 1, 4)),
       ];
 
-      final kept = ExpenseQuery('me').filter(items, cards);
+      final kept = ExpenseQuery('me').filter(items);
 
       expect([for (final item in kept) item.id], [3, 2]);
     });
@@ -91,8 +60,8 @@ void main() {
         entry(2, variable('Pão', '7,00')),
       ];
 
-      expect(ExpenseQuery.none.filter(items, cards), items);
-      expect(ExpenseQuery('  ').filter(items, cards), items);
+      expect(ExpenseQuery.none.filter(items), items);
+      expect(ExpenseQuery('  ').filter(items), items);
     });
   });
 }
