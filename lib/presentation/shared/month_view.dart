@@ -50,7 +50,7 @@ class MonthView extends StatelessWidget {
     final summary = month.summary;
     final filtering = query.isActive;
     final sorted = ExpenseOrdering.sortedBy(
-      filtering ? query.filter(month.entries, cards) : month.entries,
+      filtering ? query.filter(month.entries) : month.entries,
       orders: orders,
       cards: cards,
     );

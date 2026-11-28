@@ -59,7 +59,7 @@ O OffMoney é um orçamento mensal que fica fora da rede. Não tem conta, nem co
 - **Digitação cuidadosa.** Campo de moeda preenchido da direita, com estado vazio diferente de R$ 0,00; confirmação quando um gasto passa do saldo restante, quando parece duplicado e antes de excluir.
 - **Cartões nos parcelados.** Cadastre cartões com nome e cor em "Gerenciar cartões" e escolha um em cada parcelado; ele aparece como etiqueta na linha e no texto compartilhado. Um cartão excluído continua nos parcelados que já o usam.
 - **Ordenação.** A seta ao lado do "+" de uma categoria ordena a lista por valor, nome, data, parcelas restantes ou cartão, conforme a categoria; a escolha vale até o app ser fechado e se aplica também ao histórico.
-- **Busca.** A lupa de um mês filtra os gastos enquanto você digita, pelo nome ou pelo nome do cartão, sem diferenciar maiúsculas e acentos, com a quantidade e a soma dos resultados.
+- **Busca.** A lupa de um mês filtra os gastos pelo nome enquanto você digita, sem diferenciar maiúsculas e acentos, com a quantidade e a soma dos resultados.
 - **Histórico.** Meses fechados ficam somente leitura, com a própria linha de auditoria.
 - **Compartilhar.** Um resumo em texto de qualquer mês pela folha de compartilhamento do Android.
 - **Backup.** Exportação em JSON versionado com todos os meses, gastos, cartões e alterações, e importação que valida o arquivo inteiro antes de substituir qualquer coisa.

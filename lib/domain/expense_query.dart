@@ -2,7 +2,6 @@ import 'package:meta/meta.dart';
 import 'package:offmoney/domain/expense.dart';
 import 'package:offmoney/domain/expense_entry.dart';
 import 'package:offmoney/domain/names.dart';
-import 'package:offmoney/domain/payment_card.dart';
 
 @immutable
 final class ExpenseQuery {
@@ -20,20 +19,13 @@ final class ExpenseQuery {
 
   bool get isActive => _words.isNotEmpty;
 
-  bool matches(Expense expense, Map<int, PaymentCard> cards) {
+  bool matches(Expense expense) {
     final name = Names.key(expense.name);
-    final card = cardOf(expense, cards);
-    final cardName = card == null ? '' : Names.key(card.name);
-    return _words.every(
-      (word) => name.contains(word) || cardName.contains(word),
-    );
+    return _words.every(name.contains);
   }
 
-  List<ExpenseEntry> filter(
-    Iterable<ExpenseEntry> entries,
-    Map<int, PaymentCard> cards,
-  ) => [
+  List<ExpenseEntry> filter(Iterable<ExpenseEntry> entries) => [
     for (final entry in entries)
-      if (matches(entry.expense, cards)) entry,
+      if (matches(entry.expense)) entry,
   ];
 }
